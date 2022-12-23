@@ -1,11 +1,11 @@
-mod bios;
-mod cpu;
-mod ic;
-
 use std::path::Path;
-use bios::Bios;
-use cpu::Cpu;
-use ic::Interconnect;
+use psx::{
+    bios::Bios,
+    cpu::Cpu,
+    ic::Interconnect,
+};
+
+mod psx;
 
 fn main() {
     match Bios::new(Path::new("./scph1001.bin")) {
@@ -14,7 +14,7 @@ fn main() {
             let ic = Interconnect::new(bios);
             let mut cpu = Cpu::new(ic);
             loop {
-                cpu.step();
+                cpu.run_next_instruction();
             }
         }
     }

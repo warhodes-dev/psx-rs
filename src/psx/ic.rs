@@ -1,4 +1,4 @@
-use crate::bios::Bios;
+use crate::psx::bios::Bios;
 
 
 
@@ -24,7 +24,7 @@ impl Interconnect {
 }
 
 mod mem_map {
-    use crate::bios::{BIOS_START, BIOS_SIZE};
+    use crate::psx::bios::{BIOS_START, BIOS_SIZE};
 
     pub const BIOS_RANGE: MemRange = MemRange(BIOS_START, BIOS_START + BIOS_SIZE);
 
