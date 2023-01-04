@@ -1,21 +1,30 @@
 use std::path::Path;
-use psx::{
-    bios::Bios,
-    cpu::Cpu,
-    ic::Interconnect,
+use anyhow::Result;
+use psx_rs::{
+    Context,
+    emu::{
+        bios::Bios,
+        cpu::{Cpu, self},
+        Psx,
+    },
 };
 
-mod psx;
+fn main() -> Result<()> {
 
-fn main() {
+    let ctx = Context::new_no_disc(Path::new("./scph1001.bin"))?;
+    let mut psx = *ctx.psx;
+
+    cpu::handle_instruction(&mut psx);
+    
+
+    /*
     match Bios::new(Path::new("./scph1001.bin")) {
         Err(e) => println!("Error: {}", e),
         Ok(bios) => {
-            let ic = Interconnect::new(bios);
-            let mut cpu = Cpu::new(ic);
-            loop {
-                cpu.run_next_instruction();
-            }
+            let mut psx = Psx::new(bios);
+            cpu::handle_instruction(&mut psx);
         }
     }
+    */
+    Ok(())
 }

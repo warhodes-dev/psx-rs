@@ -7,18 +7,21 @@ use anyhow::{
     Result, 
     anyhow
 };
-use arrayvec::ArrayVec;
 
 pub const BIOS_SIZE:  u32 = 512 * 1024;
 pub const BIOS_START: u32 = 0xbfc0_0000;
 
 pub struct Bios {
-    data: ArrayVec<u8, {BIOS_SIZE as usize} >
+    data: Vec<u8>
 }
 
 impl Bios {
+    pub fn from_bytes(data: Vec<u8>) -> Self {
+        Bios { data }
+    }
+
     /// Create a new Bios object from file at `path`
-    pub fn new(path: &Path) -> Result<Self> {
+    pub fn _OLD_new(path: &Path) -> Result<Self> {
         let file = File::open(path)?;
 
         let mut data_buf = Vec::<u8>::new();
