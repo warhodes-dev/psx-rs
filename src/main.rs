@@ -11,10 +11,15 @@ use psx_rs::{
 
 fn main() -> Result<()> {
 
+    simple_logger::SimpleLogger::new()
+        .init()?;
+
     let ctx = Context::new_no_disc(Path::new("./scph1001.bin"))?;
     let mut psx = *ctx.psx;
 
-    cpu::handle_instruction(&mut psx);
+    for _ in 0..2 {
+        cpu::handle_instruction(&mut psx);
+    }
     
 
     /*

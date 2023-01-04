@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.68", features = ["backtrace"] }
 arrayvec = { version = "0.7.2", features = ["serde"] }
+log = "0.4.17"
+simple_logger = { version = "4.0.0", features = ["timestamps"] }
