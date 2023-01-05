@@ -5,6 +5,7 @@ use crate::emu::{
 
 use super::Psx;
 
+#[derive(Debug)]
 pub struct Cpu {
     /// Program counter register
     pc: u32,
@@ -64,6 +65,7 @@ pub fn handle_instruction(psx: &mut Psx) {
     */
 
     psx.cpu.pc = psx.cpu.pc.wrapping_add(4);
+    log::debug!("Cpu state after instruction:\n{:#x?}", psx.cpu);
 }
 
 pub fn fetch_instruction(psx: &mut Psx) -> Instruction {
@@ -76,7 +78,7 @@ pub fn fetch_instruction(psx: &mut Psx) -> Instruction {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Instruction(u32);
 
 impl Instruction {
@@ -108,6 +110,7 @@ impl Instruction {
     }
 }
 
+/// Load upper (immediate)
 /// lui rt,imm
 fn op_lui(psx: &mut Psx, inst: Instruction) {
     let i = inst.imm();
@@ -118,6 +121,7 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rt, v);
 }
 
+/// Bitwise OR (immediate)
 /// ori rs,rt,imm
 fn op_ori(psx: &mut Psx, inst: Instruction) {
     let i = inst.imm();
@@ -127,3 +131,17 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
     let v = psx.cpu.reg(rs) | i;
     psx.cpu.set_reg(rt, v);
 }
+
+/// Store word
+/// sw rt,imm(rs)
+fn op_sw(psx: &mut Psx, inst: Instruction) {
+    let i = inst.imm();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let addr = psx.cpu.reg(rs).wrapping_add(i);
+    let v = psx.cpu.reg(rt);
+}
+
+// General & Trait implementations
+// ...
