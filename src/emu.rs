@@ -48,9 +48,11 @@ impl Psx {
         }
     }
 
-    pub fn read32(&self, addr: u32) -> u32 {
+    /// Routes load request @ addr to proper device
+    pub fn load32(&self, addr: u32) -> u32 {
+        log::debug!("psx.load32(addr) addr: 0x{addr:08x}");
         if let Some(offset) = mmap::BIOS.contains(addr) {
-            return self.bios.load32(offset);
+            return self.xmem.bios_load(offset);
         } else {
             panic!("unhandled fetch 32 at address {:08x}", addr);
         }

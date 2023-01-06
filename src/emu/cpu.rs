@@ -33,17 +33,6 @@ impl Cpu {
         self.regs[idx as usize] = val;
         self.regs[0] = 0;
     }
-
-    fn decode_and_execute(&mut self, instruction: u32) {
-        /* 
-            match instruction.opcode() {
-                0b001111 => self.op_lui(instruction),
-                _        => panic!("unhandled instruction @ {:08x}", instruction),
-            }
-            */
-            panic!("unhandled instruction @ {:08x}", instruction);
-
-    }
 }
 
 pub fn handle_instruction(psx: &mut Psx) {
@@ -68,14 +57,9 @@ pub fn handle_instruction(psx: &mut Psx) {
     log::debug!("Cpu state after instruction:\n{:#x?}", psx.cpu);
 }
 
-pub fn fetch_instruction(psx: &mut Psx) -> Instruction {
+fn fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
-    if let Some(offset) = mmap::BIOS.contains(addr) {
-        let raw_instruction = psx.bios.load32(offset);
-        Instruction(raw_instruction)
-    } else {
-        panic!("Address 0x{:08x} is not located in BIOS region", addr);
-    }
+    Instruction(psx.load32(addr))
 }
 
 #[derive(Debug, Copy, Clone)]
