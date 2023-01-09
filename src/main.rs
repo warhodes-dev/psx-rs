@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use std::path::Path;
 use anyhow::Result;
 use psx_rs::{
@@ -17,9 +19,9 @@ fn main() -> Result<()> {
     let ctx = Context::new_no_disc(Path::new("./scph1001.bin"))?;
     let mut psx = *ctx.psx;
 
-    for i in 0..3 {
-        log::debug!("Instruction {i:2} issued");
-        cpu::handle_instruction(&mut psx);
+    for i in 0..5 {
+        log::debug!("### Instruction {i:2} issued ###");
+        cpu::handle_next_instruction(&mut psx);
     }
     
 

@@ -1,6 +1,7 @@
 pub mod bios;
 pub mod cpu;
 pub mod xmem;
+pub mod map;
 
 use crate::emu::{
     bios::Bios, 
@@ -17,7 +18,6 @@ pub struct Psx {
 
 impl Psx {
     pub fn new_from_bios(bios: Bios) -> Self {
-
         let bios_rom = bios.get_rom()
             .try_into()
             .expect(&format!("Bios size does not equal {:?}", bios::BIOS_SIZE));
@@ -32,55 +32,40 @@ impl Psx {
         }
     }
 
-    pub fn _new_from_disc(disc: (), bios: Bios) -> Self {
-
-        let bios_rom = bios.get_rom()
-            .try_into()
-            .expect(&format!("Bios size does not equal {:?}", bios::BIOS_SIZE));
-
-        let mut xmem = XMemory::new();
-        xmem.set_bios(bios_rom);
-
-        Psx {
-            bios,
-            cpu: Cpu::new(),
-            xmem,
-        }
-    }
-
     /// Routes load request @ addr to proper device
     pub fn load32(&self, addr: u32) -> u32 {
-        log::debug!("psx.load32(addr) addr: 0x{addr:08x}");
-        if let Some(offset) = mmap::BIOS.contains(addr) {
-            return self.xmem.bios_load(offset);
-        } else {
-            panic!("unhandled fetch 32 at address {:08x}", addr);
+        if addr % 4 != 0 {
+            panic!("unaligned load32 at address 0x{addr:08x}");
         }
 
+        log::trace!("psx.load32(0x{addr:08x})");
+
+        match map::get_region(addr) {
+            map::MemRegion::Bios(base_addr)    => {
+                let offset = addr - base_addr;
+                return self.xmem.bios_load(offset);
+            },
+            map::MemRegion::MemCtrl(base_addr) => {
+                log::warn!("read from memctrl region, but this is unimplemented");
+                return 0;
+            },
+        }
     }
-}
 
-mod mmap {
-    use crate::emu::bios::{BIOS_START, BIOS_SIZE};
+    pub fn store32(&self, addr: u32, val: u32) {
+        if addr % 4 != 0 {
+            panic!("unaligned store32 at address 0x{addr:08x}");
+        }
 
-    //  Memory ranges for each memory map region
-    /// Memory map region for BIOS ROM
-    pub const BIOS: MemRange = MemRange(BIOS_START, BIOS_START + BIOS_SIZE as u32);
-    /// Memory map region for x
- // pub const X: MemRange = MemRange(X_START, X_START + X_SIZE)
+        log::trace!("psx.store32(0x{addr:08x}, {val}");
 
-    // IDEA: try interval-tools
-    pub struct MemRange(u32, u32);
-
-    impl MemRange {
-        pub fn contains(self, addr: u32) -> Option<u32> {
-            let MemRange(start, end) = self;
-
-            if addr >= start && addr < end {
-                Some(addr - start)
-            } else {
-                None
-            }
+        match map::get_region(addr) {
+            map::MemRegion::Bios(base_addr)    => {
+                panic!("attempt to write to bios region which is read only");
+            },
+            map::MemRegion::MemCtrl(base_addr) => {
+                log::warn!("wrote to memctrl region, but this is unimplemented");
+            },
         }
     }
 }

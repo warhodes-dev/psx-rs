@@ -27,15 +27,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arrayvec"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -98,6 +89,12 @@ checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "iset"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83e6ab4995cb7dd596e9013e90e3f7d65008dbda350778204ce76663cece4f06"
 
 [[package]]
 name = "itoa"
@@ -164,7 +161,8 @@ name = "psx-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "arrayvec",
+ "iset",
+ "lazy_static",
  "log",
  "simple_logger",
 ]

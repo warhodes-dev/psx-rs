@@ -1,5 +1,3 @@
-use arrayvec::ArrayVec;
-
 use super::bios::BIOS_SIZE;
 
 const BIOS_OFFSET: usize = 0;
@@ -20,11 +18,15 @@ impl XMemory {
 
     pub fn set_bios(&mut self, bios: &[u8; BIOS_SIZE]) {
         let mut bios_u32: Vec<u32> = Vec::new();
+
         for chunk in bios.chunks(4) {
             let quad = chunk.try_into().expect("Bios size must be a multiple of 4");
             let word = u32::from_le_bytes(quad);
             bios_u32.push(word);
         }
+
+        let (bios_region, _ram_region) = self.regions();
+        bios_region.copy_from_slice(bios_u32.as_slice());
     }
 
     fn store(&mut self, offset: usize, val: u32) {
@@ -46,8 +48,12 @@ impl XMemory {
     }
 
     pub fn bios_load(&self, offset: u32) -> u32 {
-        log::debug!("bios_load(offset) offset: {offset}");
+        log::trace!("bios_load(0x{offset:08x})");
         let offset = BIOS_OFFSET + offset as usize;
         self.load(offset)
+    }
+
+    fn regions(&mut self) -> (&mut [u32], &mut [u32]) {
+        self.mem.split_at_mut(BIOS_SIZE / 4)
     }
 }

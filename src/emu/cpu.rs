@@ -1,6 +1,7 @@
+
+
 use crate::emu::{
     bios::BIOS_START,
-    mmap,
 };
 
 use super::Psx;
@@ -35,14 +36,15 @@ impl Cpu {
     }
 }
 
-pub fn handle_instruction(psx: &mut Psx) {
-    let instruction = fetch_instruction(psx);
-    let inst_debug = instruction.clone();
+pub fn handle_next_instruction(psx: &mut Psx) {
+    let inst = fetch_instruction(psx);
 
-    match instruction.opcode() {
-        0x0F => op_lui(psx, instruction),
-        0x0D => op_ori(psx, instruction),
-        _ => panic!("Unhandled instruction: {:x}", instruction.0),
+    match inst.opcode() {
+        0x0F => op_lui(psx, inst),
+        0x0D => op_ori(psx, inst),
+        0x2B =>  op_sw(psx, inst),
+        0x00 => op_sll(psx, inst),
+        _ => panic!("unknown instruction: 0x{:x}", inst.0),
     }
 
     /*
@@ -54,7 +56,7 @@ pub fn handle_instruction(psx: &mut Psx) {
     */
 
     psx.cpu.pc = psx.cpu.pc.wrapping_add(4);
-    log::debug!("Cpu state after instruction:\n{:#x?}", psx.cpu);
+    //log::debug!("Cpu state after instruction:\n{:#x?}", psx.cpu);
 }
 
 fn fetch_instruction(psx: &mut Psx) -> Instruction {
@@ -68,35 +70,59 @@ pub struct Instruction(u32);
 impl Instruction {
 
     /// Return bits [31:26] of instruction
-    fn opcode(&self) -> u32 {
+    fn opcode(self) -> u32 {
         let Instruction(op) = self;
         op >> 26
     }
 
     /// Return register index in bits [25:21]
-    fn rs(&self) -> u32 {
+    fn rs(self) -> u32 {
         let Instruction(op) = self;
         (op >> 21) & 0x1f
     }
 
     /// Return register index in bits [20:16]
-    fn rt(&self) -> u32 {
+    fn rt(self) -> u32 {
         let Instruction(op) = self;
 
         (op >> 16) & 0x1f
     }
 
+    /// Return register index in bits [15:11]
+    fn rd(self) -> u32 {
+        let Instruction(op) = self;
+
+        (op >> 11) & 0x1f
+    }
+
+    /// Return subfunction value in bits [5:0]
+    fn subfunction(self) -> u32 {
+        let Instruction(op) = self;
+
+        op & 0x3f
+    }
+
+    /// Return 'Shift-Immediate' value in bits [10:6]
+
     /// Return immediate value in bits [16:0]
-    fn imm(&self) -> u32 {
+    fn imm(self) -> u32 {
         let Instruction(op) = self;
 
         op & 0xffff
+    }
+
+    /// Return immediate value in bits [16:0] as a sign-extended 32 bit value
+    fn imm_se(self) -> u32 {
+        let Instruction(op) = self;
+
+        (op & 0xffff) as i16 as u32
     }
 }
 
 /// Load upper (immediate)
 /// lui rt,imm
 fn op_lui(psx: &mut Psx, inst: Instruction) {
+    log::trace!("inst: LUI");
     let i = inst.imm();
     let rt = inst.rt(); // TODO: Pipelining
 
@@ -108,6 +134,7 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
 /// Bitwise OR (immediate)
 /// ori rs,rt,imm
 fn op_ori(psx: &mut Psx, inst: Instruction) {
+    log::trace!("inst: ORI");
     let i = inst.imm();
     let rt = inst.rt();
     let rs = inst.rs();
@@ -119,13 +146,19 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
 /// Store word
 /// sw rt,imm(rs)
 fn op_sw(psx: &mut Psx, inst: Instruction) {
-    let i = inst.imm();
+    log::trace!("inst: SW");
+    let i = inst.imm_se();
     let rt = inst.rt();
     let rs = inst.rs();
 
     let addr = psx.cpu.reg(rs).wrapping_add(i);
     let v = psx.cpu.reg(rt);
+
+    psx.store32(addr, v);
 }
 
-// General & Trait implementations
-// ...
+/// Shift left logical
+/// sll rd,rt,imm
+fn op_sll(psx: &mut Psx, inst: Instruction) {
+    let i = inst.
+}
