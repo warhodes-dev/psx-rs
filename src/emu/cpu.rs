@@ -103,6 +103,11 @@ impl Instruction {
     }
 
     /// Return 'Shift-Immediate' value in bits [10:6]
+    fn shift_imm(self) -> u32 {
+        let Instruction(op) = self;
+
+        (op >> 6) & 0x1f
+    }
 
     /// Return immediate value in bits [16:0]
     fn imm(self) -> u32 {
@@ -160,5 +165,11 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
 /// Shift left logical
 /// sll rd,rt,imm
 fn op_sll(psx: &mut Psx, inst: Instruction) {
-    let i = inst.
+    let i = inst.shift_imm();
+    let rt = inst.rt();
+    let rd = inst.rd();
+
+    let v = psx.cpu.reg(rt) << i;
+
+    psx.cpu.set_reg(rd, v);
 }

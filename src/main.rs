@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     let ctx = Context::new_no_disc(Path::new("./scph1001.bin"))?;
     let mut psx = *ctx.psx;
 
-    for i in 0..5 {
+    for i in 0..6 {
         log::debug!("### Instruction {i:2} issued ###");
         cpu::handle_next_instruction(&mut psx);
     }
