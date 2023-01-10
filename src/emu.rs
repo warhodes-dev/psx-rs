@@ -41,14 +41,22 @@ impl Psx {
         log::trace!("psx.load32(0x{addr:08x})");
 
         match map::get_region(addr) {
-            map::MemRegion::Bios(base_addr)    => {
-                let offset = addr - base_addr;
+            map::Region::Bios(mapping) => {
+                let offset = addr - mapping.base;
                 return self.xmem.bios_load(offset);
             },
-            map::MemRegion::MemCtrl(base_addr) => {
+            map::Region::MemCtl(_mapping) => {
                 log::warn!("read from memctrl region, but this is unimplemented");
                 return 0;
             },
+            map::Region::RamCtl(_mapping) => {
+                log::warn!("read from ramctrl region, but this is unsupported");
+                return 0;
+            },
+            map::Region::CacheCtl(_mapping) => {
+                log::warn!("read from cachectrl region, but this is unsupported");
+                return 0;
+            }
         }
     }
 
@@ -57,15 +65,21 @@ impl Psx {
             panic!("unaligned store32 at address 0x{addr:08x}");
         }
 
-        log::trace!("psx.store32(0x{addr:08x}, {val}");
+        log::trace!("psx.store32(0x{addr:08x}, {val})");
 
         match map::get_region(addr) {
-            map::MemRegion::Bios(base_addr)    => {
+            map::Region::Bios(_mapping) => {
                 panic!("attempt to write to bios region which is read only");
             },
-            map::MemRegion::MemCtrl(base_addr) => {
+            map::Region::MemCtl(_mapping) => {
                 log::warn!("wrote to memctrl region, but this is unimplemented");
             },
+            map::Region::RamCtl(_mapping) => {
+                log::warn!("wrote to memctrl region, but this is unimplemented");
+            },
+            map::Region::CacheCtl(_mapping) => {
+                log::warn!("wrote to cachectrl region, but this is unsupported");
+            }
         }
     }
 }
