@@ -1,21 +1,17 @@
-
-
 use std::collections::VecDeque;
 
 use crate::emu::{
     bios::BIOS_START,
+    cop,
 };
 
 use super::Psx;
-
-struct RegisterIndex(u32);
 
 #[derive(Debug)]
 pub struct Cpu {
     /// Program counter register
     pc: u32,
     /// General purpose registers
-    /// The first entry [0] must always contain 0
     regs: [u32; 32],
     delay_queue: VecDeque<Instruction>,
 }
@@ -43,18 +39,34 @@ impl Cpu {
     fn set_reg(&mut self, idx: RegisterIndex, val: u32) {
         let RegisterIndex(i) = idx;
         self.regs[i as usize] = val;
-        self.regs[0] = 0;
+        self.regs[0] = 0; // Register 0 should stay 0, even if set otherwise
+    }
+
+    fn branch(&mut self, offset: u32) {
+        // TODO: Area for improvement. Try figuring out how to remove the sub(4)
+
+        // PC must be aligned on 32 bits
+        let offset = offset << 2;
+        let mut pc = self.pc;
+
+        pc = pc.wrapping_add(offset);
+        // Compensate for hardcoded +4 in handle_instruction
+        pc = pc.wrapping_sub(4);
+
+        self.pc = pc;
     }
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
-
-    let inst = psx.cpu.delay_queue.pop_back()
-        .expect("delay queue empty. cannot fetch instruction");
-
+    
+    // Prepare *next* (not current) instruction
     let next_inst = fetch_instruction(psx);
     psx.cpu.delay_queue.push_front(next_inst);
     psx.cpu.pc = psx.cpu.pc.wrapping_add(4);
+
+    // Get current instruction
+    let inst = psx.cpu.delay_queue.pop_back()
+        .expect("delay queue empty. cannot fetch instruction");
 
     log::trace!("raw instruction: 0x{:08x}", inst.0);
 
@@ -66,6 +78,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
         0x09 => op_addiu(psx, inst),
         0x02 => op_j(psx, inst),
         0x10 => op_cop0(psx, inst),
+        0x05 => op_bne(psx, inst),
         0x00 => {
             // Secondary opcode
             match inst.funct() { 
@@ -76,21 +89,19 @@ pub fn handle_next_instruction(psx: &mut Psx) {
         }
         unknown => panic!("unknown primary opcode: 0x{unknown:02x}"),
     }
-
-    /*
-    println!("Instruction 0x{:08x} handled. New state:", inst_debug.0);
-    println!("Registers: ");
-    for (idx, reg) in psx.cpu.regs.iter().enumerate() {
-        println!("[{idx:2}]: {reg:08x}");
-    }
-    */
-
-    //log::debug!("Cpu state after instruction:\n{:#x?}", psx.cpu);
 }
 
 fn fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
     Instruction(psx.load32(addr))
+}
+
+pub struct RegisterIndex(u32);
+
+impl From<RegisterIndex> for u32 {
+    fn from(r: RegisterIndex) -> Self {
+        r.0
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -208,6 +219,12 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
 /// [imm + rs] = rt
 fn op_sw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SW");
+
+    if psx.cop0.status().isolate_cache() {
+        log::warn!("ignoring store while cache is isolated");
+        return;
+    }
+
     let i = inst.imm_se();
     let rt = inst.rt();
     let rs = inst.rs();
@@ -255,18 +272,44 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
     psx.cpu.pc = (psx.cpu.pc & 0xf000_0000) | (a << 2);
 }
 
+/// Branch if not equal
+/// bne rs,rt,addr
+/// if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+fn op_bne(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec BNE");
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let a = psx.cpu.reg(rs);
+    let b = psx.cpu.reg(rt);
+
+    if a != b {
+
+    }
+}
+
 /* Coprocessor logic */
 
 /// Invoke coprocessor 0
 /// cop0 cop_op
 /// exec cop0 command 0x0..0x1ff_ffff
 fn op_cop0(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec COP0");
     match inst.cop_op() {
         0x4 => op_mtc0(psx, inst),
-        other => panic!("unknwon cop0 delegation: {other:05x}"),
+        _else => panic!("unknwon cop0 delegation: {_else:05x}"),
     }
 }
 
+/// Move to coprocessor 0
+/// mtc0 rt,rd
+/// cop#_(data_reg) = rt
 fn op_mtc0(psx: &mut Psx, inst: Instruction) { 
-    todo!()
+    log::trace!("COP0 exec MTC0");
+    let cpu_r = inst.rt();
+    let cop_r = inst.rd();
+
+    let v = psx.cpu.reg(cpu_r);
+
+    cop::op_mtc0(psx, cop_r, v);
 }

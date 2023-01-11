@@ -2,18 +2,21 @@ pub mod bios;
 pub mod cpu;
 pub mod xmem;
 pub mod map;
+pub mod cop;
 
 use crate::emu::{
     bios::Bios, 
     cpu::Cpu,
     xmem::XMemory,
+    cop::Cop0,
 };
 
 
 pub struct Psx {
     bios: Bios,
-    xmem: XMemory,
     cpu: Cpu,
+    cop0: Cop0,
+    xmem: XMemory,
 }
 
 impl Psx {
@@ -28,6 +31,7 @@ impl Psx {
         Psx { 
             bios, 
             cpu: Cpu::new(),
+            cop0: Cop0::new(),
             xmem,
         }
     }
