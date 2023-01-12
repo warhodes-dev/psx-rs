@@ -19,6 +19,7 @@ impl Cop0 {
 }
 
 pub fn op_mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
+    log::trace!("cop0 exec MTC0");
     match cop_r.into() {
         3..=11 => unimplemented!(),
         12 => {

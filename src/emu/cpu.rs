@@ -44,6 +44,7 @@ impl Cpu {
 
     fn branch(&mut self, offset: u32) {
         // TODO: Area for improvement. Try figuring out how to remove the sub(4)
+        log::trace!("cpu branching to 0x{offset:08x}");
 
         // PC must be aligned on 32 bits
         let offset = offset << 2;
@@ -68,13 +69,13 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     let inst = psx.cpu.delay_queue.pop_back()
         .expect("delay queue empty. cannot fetch instruction");
 
-    log::trace!("raw instruction: 0x{:08x}", inst.0);
 
     // Primary opcode
     match inst.opcode() {
         0x0F => op_lui(psx, inst),
         0x0D => op_ori(psx, inst),
         0x2B => op_sw(psx, inst),
+        0x08 => op_addi(psx, inst),
         0x09 => op_addiu(psx, inst),
         0x02 => op_j(psx, inst),
         0x10 => op_cop0(psx, inst),
@@ -84,16 +85,19 @@ pub fn handle_next_instruction(psx: &mut Psx) {
             match inst.funct() { 
                 0x00 => op_sll(psx, inst),
                 0x25 => op_or(psx, inst),
-                unknown => panic!("unknown secondary opcode: 0x{unknown:02x}"),
+                _else => panic!("unknown secondary opcode: 0x{_else:02x}"),
             }
         }
-        unknown => panic!("unknown primary opcode: 0x{unknown:02x}"),
+        _else => panic!("unknown primary opcode: 0x{_else:02x}"),
     }
 }
 
 fn fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
-    Instruction(psx.load32(addr))
+    let inst_raw = psx.load32(addr);
+    let inst = Instruction(inst_raw);
+    log::trace!("fetched instruction: 0x{inst_raw:08x}"); 
+    inst
 }
 
 pub struct RegisterIndex(u32);
@@ -262,6 +266,23 @@ fn op_addiu(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rt, v);
 }
 
+/// Add Immediate
+/// addi rt,rs,imm
+/// rt = rs + (-0x8000..+0x7fff) (with overflow trap)
+fn op_addi(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ADDI");
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let v = match psx.cpu.reg(rs).checked_add(i) {
+        Some(v) => v,
+        None    => panic!("ADDI: overflow ({} + {})", psx.cpu.reg(inst.rs()), i),
+    };
+
+    psx.cpu.set_reg(rt, v);
+}
+
 /// Jump
 /// j addr
 /// pc = (pc & 0xf000_0000) + (addr * 4), ra = $ + 8
@@ -277,6 +298,7 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
 /// if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
 fn op_bne(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec BNE");
+    let i = inst.imm_se();
     let rs = inst.rs();
     let rt = inst.rt();
 
@@ -284,7 +306,7 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     let b = psx.cpu.reg(rt);
 
     if a != b {
-
+        psx.cpu.branch(i);
     }
 }
 
@@ -305,7 +327,7 @@ fn op_cop0(psx: &mut Psx, inst: Instruction) {
 /// mtc0 rt,rd
 /// cop#_(data_reg) = rt
 fn op_mtc0(psx: &mut Psx, inst: Instruction) { 
-    log::trace!("COP0 exec MTC0");
+    log::trace!("subexec MTC0");
     let cpu_r = inst.rt();
     let cop_r = inst.rd();
 
