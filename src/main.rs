@@ -24,15 +24,5 @@ fn main() -> Result<()> {
         cpu::handle_next_instruction(&mut psx);
     }
     
-
-    /*
-    match Bios::new(Path::new("./scph1001.bin")) {
-        Err(e) => println!("Error: {}", e),
-        Ok(bios) => {
-            let mut psx = Psx::new(bios);
-            cpu::handle_instruction(&mut psx);
-        }
-    }
-    */
     Ok(())
 }
