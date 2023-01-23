@@ -14,6 +14,7 @@ pub struct Cpu {
     /// General purpose registers
     regs: [u32; 32],
     delay_queue: VecDeque<Instruction>,
+    pending_load: Option<PendingLoad>,
 }
 
 impl Cpu {
@@ -28,6 +29,7 @@ impl Cpu {
             pc: BIOS_START,
             regs,
             delay_queue,
+            pending_load: None,
         }
     }
 
@@ -40,6 +42,19 @@ impl Cpu {
         let RegisterIndex(i) = idx;
         self.regs[i as usize] = val;
         self.regs[0] = 0; // Register 0 should stay 0, even if set otherwise
+    }
+
+    /// Executes any pending load in the load delay queue
+    fn execute_pending_load(&mut self) {
+        if let Some(pending_load) = self.pending_load {
+            let reg = pending_load.target_reg;
+            let val = pending_load.val;
+            self.set_reg(reg, val);
+
+            //TODO: Handle delay cycles... somehow
+
+            self.pending_load = None;
+        }
     }
 
     fn branch(&mut self, offset: u32) {
@@ -101,6 +116,14 @@ fn fetch_instruction(psx: &mut Psx) -> Instruction {
     inst
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct PendingLoad {
+    target_reg: RegisterIndex,
+    val: u32,
+    delay_cycles: u32,
+}
+
+#[derive(Debug, Copy, Clone)]
 pub struct RegisterIndex(u32);
 
 impl From<RegisterIndex> for u32 {
