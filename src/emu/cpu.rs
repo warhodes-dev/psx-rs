@@ -45,7 +45,7 @@ impl Cpu {
     }
 
     /// Executes any pending load in the load delay queue
-    fn execute_pending_load(&mut self) {
+    fn handle_pending_load(&mut self) {
         if let Some(pending_load) = self.pending_load {
             let reg = pending_load.target_reg;
             let val = pending_load.val;
