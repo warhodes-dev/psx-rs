@@ -229,6 +229,8 @@ fn op_or(psx: &mut Psx, inst: Instruction) {
     let t = psx.cpu.reg(rt);
 
     let val = s | t;
+
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, val);
 }
 
@@ -244,6 +246,7 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let val = s | i;
 
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
 }
 
@@ -253,14 +256,23 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
 fn op_lw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LW");
 
+    if psx.cop0.status().isolate_cache() {
+        log::warn!("ignoring load while cache is isolated");
+        return;
+    }
+
     let i = inst.imm_se();
     let rt = inst.rt();
     let rs = inst.rs();
 
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
+
+    println!("LW_DEBUG:\ni: {i}\nrt: {rt:?}\nrs: {rs:?}\ns: {s}\naddr: {addr}");
+
     let val = psx.load32(addr);
 
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
 }
 
@@ -283,6 +295,7 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
     let addr = s.wrapping_add(i);
     let val = psx.cpu.reg(rt);
 
+    psx.cpu.handle_pending_load();
     psx.store32(addr, val);
 }
 
@@ -298,6 +311,7 @@ fn op_sll(psx: &mut Psx, inst: Instruction) {
     let t = psx.cpu.reg(rt);
     let val = t << i;
 
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, val);
 }
 
@@ -313,6 +327,7 @@ fn op_addiu(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let val = s.wrapping_add(i);
 
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
 }
 
@@ -339,6 +354,7 @@ fn op_addi(psx: &mut Psx, inst: Instruction) {
         None    => panic!("ADDI: overflow ({} + {})", s, i),
     };
 
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
 }
 
@@ -350,6 +366,8 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
     let addr = inst.addr();
 
     psx.cpu.pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
+
+    psx.cpu.handle_pending_load();
 }
 
 /// Branch if not equal
@@ -367,6 +385,8 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     if s != t {
         psx.cpu.branch(i);
     }
+
+    psx.cpu.handle_pending_load();
 }
 
 /* Coprocessor logic */
@@ -392,5 +412,6 @@ fn op_mtc0(psx: &mut Psx, inst: Instruction) {
 
     let val = psx.cpu.reg(cpu_rt);
 
+    psx.cpu.handle_pending_load();
     cop::op_mtc0(psx, cop_r, val);
 }
