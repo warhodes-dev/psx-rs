@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+#![feature(array_chunks)]
 
 use std::path::Path;
 use anyhow::Result;

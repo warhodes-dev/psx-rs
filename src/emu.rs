@@ -21,12 +21,14 @@ pub struct Psx {
 
 impl Psx {
     pub fn new_from_bios(bios: Bios) -> Self {
+        /*
         let bios_rom = bios.get_rom()
             .try_into()
             .expect(&format!("Bios size does not equal {:?}", bios::BIOS_SIZE));
+        */
 
         let mut xmem = XMemory::new();
-        xmem.set_bios(bios_rom);
+        //xmem.set_bios(bios_rom);
 
         Psx { 
             bios, 
@@ -47,7 +49,7 @@ impl Psx {
         match map::get_region(addr) {
             map::Region::Bios(mapping) => {
                 let offset = addr - mapping.base;
-                return self.xmem.bios_load(offset);
+                return self.bios.load32(offset);
             },
             map::Region::MemCtl(_mapping) => {
                 log::warn!("read from memctrl region, but this is unimplemented");
