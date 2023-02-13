@@ -22,20 +22,11 @@ pub struct Psx {
 
 impl Psx {
     pub fn new_from_bios(bios_buf: &[u8; bios::BIOS_SIZE]) -> Self {
-        /*
-        let bios_rom = bios.get_rom()
-            .try_into()
-            .expect(&format!("Bios size does not equal {:?}", bios::BIOS_SIZE));
-        */
-        let mut bios = Bios::new(bios_buf);
-        let mut ram = Ram::new();
-        //xmem.set_bios(bios_rom);
-
         Psx { 
-            bios, 
+            bios: Bios::new(bios_buf), 
             cpu: Cpu::new(),
             cop0: Cop0::new(),
-            ram,
+            ram: Ram::new(),
         }
     }
 

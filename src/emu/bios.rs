@@ -11,6 +11,7 @@ pub struct Bios {
 impl Bios {
     pub fn new(buf: &[u8; BIOS_SIZE])-> Self {
 
+        /* Stable strategy
         let mem = buf.chunks(4)
             .map(|chunk| {
                 if let Ok(array_chunk) = chunk.try_into() {
@@ -20,11 +21,11 @@ impl Bios {
                 }
             })
             .collect::<Vec<u32>>();
+        */
 
-        let mem2 = buf.array_chunks::<4>();
-
-        let a = 5;
-        a = "help";
+        let mem = buf.array_chunks::<4>()
+            .map(|chunk| u32::from_ne_bytes(*chunk))
+            .collect::<Vec<u32>>();
 
         Bios { mem }
     }
@@ -40,9 +41,5 @@ impl Bios {
     pub fn load32(&self, offset: u32) -> u32 {
         log::trace!("bios.load32(0x{offset:08x})");
         self.load(offset as usize)
-    }
-
-    pub fn set_bios(&mut self, bios: &[u8; BIOS_SIZE]) {
-        let mut bios_u32: Vec<u32> = Vec::new();
     }
 }

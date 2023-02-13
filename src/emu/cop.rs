@@ -1,6 +1,6 @@
 use crate::emu::{
     Psx,
-    cpu::{self, RegisterIndex},
+    cpu::RegisterIndex,
 };
 
 pub struct Cop0 {

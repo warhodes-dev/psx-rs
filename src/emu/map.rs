@@ -1,8 +1,8 @@
+//!  Memory ranges for each memory map region
+
 use std::ops::Range;
 use lazy_static::lazy_static;
 use iset::{interval_map, IntervalMap};
-
-///  Memory ranges for each memory map region
 
 #[derive(Copy, Clone)]
 pub struct Mapping {
