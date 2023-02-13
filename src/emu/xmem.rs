@@ -4,6 +4,7 @@ const BIOS_OFFSET: usize = 0;
 const RAM_OFFSET:  usize = BIOS_SIZE;
 const RAM_SIZE:    usize = 1 << 21; // 2 MB 
 
+/* 
 pub struct XMemory {
     mem: Vec<u32>,
 }
@@ -57,3 +58,4 @@ impl XMemory {
         self.mem.split_at_mut(BIOS_SIZE / 4)
     }
 }
+*/

@@ -1,14 +1,15 @@
 pub mod bios;
 pub mod cpu;
-pub mod xmem;
 pub mod map;
 pub mod cop;
+pub mod ram;
+
 
 use crate::emu::{
     bios::Bios, 
     cpu::Cpu,
-    xmem::XMemory,
     cop::Cop0,
+    ram::Ram,
 };
 
 
@@ -16,25 +17,25 @@ pub struct Psx {
     bios: Bios,
     cpu: Cpu,
     cop0: Cop0,
-    xmem: XMemory,
+    ram: Ram,
 }
 
 impl Psx {
-    pub fn new_from_bios(bios: Bios) -> Self {
+    pub fn new_from_bios(bios_buf: &[u8; bios::BIOS_SIZE]) -> Self {
         /*
         let bios_rom = bios.get_rom()
             .try_into()
             .expect(&format!("Bios size does not equal {:?}", bios::BIOS_SIZE));
         */
-
-        let mut xmem = XMemory::new();
+        let mut bios = Bios::new(bios_buf);
+        let mut ram = Ram::new();
         //xmem.set_bios(bios_rom);
 
         Psx { 
             bios, 
             cpu: Cpu::new(),
             cop0: Cop0::new(),
-            xmem,
+            ram,
         }
     }
 
