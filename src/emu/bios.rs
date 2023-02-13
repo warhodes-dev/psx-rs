@@ -23,6 +23,9 @@ impl Bios {
 
         let mem2 = buf.array_chunks::<4>();
 
+        let a = 5;
+        a = "help";
+
         Bios { mem }
     }
 
