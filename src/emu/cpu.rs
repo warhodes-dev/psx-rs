@@ -84,7 +84,6 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     let inst = psx.cpu.delay_queue.pop_back()
         .expect("delay queue empty. cannot fetch instruction");
 
-
     // Primary opcode
     match inst.opcode() {
         0x0F => op_lui   (psx, inst),
