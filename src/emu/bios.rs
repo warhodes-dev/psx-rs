@@ -11,7 +11,7 @@ pub struct Bios {
 impl Bios {
     pub fn new(buf: &[u8; BIOS_SIZE])-> Self {
 
-        /*
+        /* Stable strategy
         let mem = buf.chunks(4)
             .map(|chunk| {
                 if let Ok(array_chunk) = chunk.try_into() {
