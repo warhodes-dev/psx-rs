@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     let mut psx = *ctx.psx;
 
     for i in 0..3000 {
-        log::debug!("=== Instruction {i:2} issued ===");
+        log::trace!("=== Instruction {i:2} issued ===");
         cpu::handle_next_instruction(&mut psx);
     }
     

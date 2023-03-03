@@ -21,9 +21,10 @@ impl Mapping {
 }
 
 const BIOS     : Mapping = Mapping::def(0x1fc0_0000, 512 * 1024 /* 512 KB */);
+const RAM      : Mapping = Mapping::def(0xa000_0000, 2 * 1024 * 1024 /* 2 MB */);
 const MEM_CTL  : Mapping = Mapping::def(0x1f80_1000, 36);
 const RAM_CTL  : Mapping = Mapping::def(0x1f80_1060, 4);
-const CACHE_CTL: Mapping = Mapping::def(0xfffe0130, 4);
+const CACHE_CTL: Mapping = Mapping::def(0xfffe_0130, 4);
 
 pub fn get_region(addr: u32) -> Region {
     let query = addr..=addr;
@@ -37,6 +38,7 @@ pub fn get_region(addr: u32) -> Region {
 #[derive(Copy, Clone)]
 pub enum Region {
     Bios(Mapping),
+    Ram(Mapping),
     MemCtl(Mapping),
     RamCtl(Mapping),
     CacheCtl(Mapping),
@@ -46,6 +48,7 @@ lazy_static! {
     /// Contains the base address all memory intervals.
     static ref MEMORY_MAP: IntervalMap<u32, Region> = interval_map! {
         BIOS.range()      => Region::Bios(BIOS),
+        RAM.range()       => Region::Ram(RAM),
         MEM_CTL.range()   => Region::MemCtl(MEM_CTL),
         RAM_CTL.range()   => Region::RamCtl(RAM_CTL),
         CACHE_CTL.range() => Region::CacheCtl(CACHE_CTL),

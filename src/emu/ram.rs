@@ -1,7 +1,7 @@
 
 
 pub const RAM_SIZE : usize = 2 * 1024 * 1024;
-pub const RAM_START: u32   = 0x0000_0000;
+pub const RAM_START: u32   = 0xa000_0000;
 pub const RAM_END: u32     = RAM_START + RAM_SIZE as u32;
 
 pub struct Ram {
@@ -12,6 +12,24 @@ impl Ram {
     pub fn new() -> Self {
         let mem = vec![0xB0BA_CAFE; RAM_SIZE / 4];
         Ram { mem }
+    }
+
+    // TODO: Generalize this to support u8, u16, and u32
+    fn load(&self, offset: usize) -> u32 {
+        self.mem[offset / 4]
+    }
+
+    pub fn load32(&self, offset: u32) -> u32 {
+        log::trace!("ram.load32(0x{offset:08x})");
+        self.load(offset as usize)
+    }
+
+    fn store(&mut self, offset: usize, val: u32) {
+        self.mem[offset / 4] = val;
+    }
+
+    pub fn store32(&mut self, offset: u32, val: u32) {
+        self.store(offset as usize, val);
     }
 }
 

@@ -34,6 +34,7 @@ impl Bios {
         &self.mem
     }
 
+    // TODO: Generalize this to support u8, u16, and u32
     fn load(&self, offset: usize) -> u32 {
         self.mem[offset / 4]
     }

@@ -21,11 +21,20 @@ impl Cop0 {
 pub fn op_mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
     log::trace!("cop0 exec MTC0");
     match cop_r.into() {
-        3..=11 => unimplemented!(),
+        3 | 5 | 6 | 7 | 9 | 11 => {
+            // TODO: What if non-zero is written?
+            if val != 0 {
+                panic!("unhandled write to cop0_r")
+            }
+        }
         12 => {
             psx.cop0.sr = val;
         },
-        13 => unimplemented!(),
+        13 => {
+            if val != 0 {
+                panic!("unhandled write to CAUSE register");
+            }
+        }
         _else => panic!("unhandled cop0 register: 0x{_else:08x}"),
     } 
 }

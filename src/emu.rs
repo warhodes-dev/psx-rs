@@ -4,14 +4,12 @@ pub mod map;
 pub mod cop;
 pub mod ram;
 
-
 use crate::emu::{
     bios::Bios, 
     cpu::Cpu,
     cop::Cop0,
     ram::Ram,
 };
-
 
 pub struct Psx {
     bios: Bios,
@@ -43,6 +41,10 @@ impl Psx {
                 let offset = addr - mapping.base;
                 return self.bios.load32(offset);
             },
+            map::Region::Ram(mapping) => {
+                let offset = addr - mapping.base;
+                return self.ram.load32(offset);
+            }
             map::Region::MemCtl(_mapping) => {
                 log::warn!("read from memctrl region, but this is unimplemented");
                 return 0;
@@ -58,7 +60,7 @@ impl Psx {
         }
     }
 
-    pub fn store32(&self, addr: u32, val: u32) {
+    pub fn store32(&mut self, addr: u32, val: u32) {
         if addr % 4 != 0 {
             panic!("unaligned store32 at address 0x{addr:08x}");
         }
@@ -69,6 +71,10 @@ impl Psx {
             map::Region::Bios(_mapping) => {
                 panic!("attempt to write to bios region which is read only");
             },
+            map::Region::Ram(mapping) => {
+                let offset = addr - mapping.base;
+                self.ram.store32(offset, val);
+            }
             map::Region::MemCtl(_mapping) => {
                 log::warn!("wrote to memctrl region, but this is unimplemented");
             },

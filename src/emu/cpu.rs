@@ -203,8 +203,8 @@ impl Instruction {
 }
 
 /// Load upper (immediate)
-/// lui rt,imm
-/// rt = (0x0000..0xffff) << 16
+// lui rt,imm
+// rt = (0x0000..0xffff) << 16
 fn op_lui(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LUI");
     let i = inst.imm();
@@ -216,8 +216,8 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Bitwise OR
-/// or rd,rs,rt
-/// rd = rs OR rt
+// or rd,rs,rt
+// rd = rs OR rt
 fn op_or(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec OR");
     let rd = inst.rd();
@@ -234,8 +234,8 @@ fn op_or(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Bitwise OR (immediate)
-/// ori rs,rt,imm
-/// rt = rs | (0x0000..0xffff)
+// ori rs,rt,imm
+// rt = rs | (0x0000..0xffff)
 fn op_ori(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec ORI");
     let i = inst.imm();
@@ -250,8 +250,8 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Load word
-/// lw rt,imm(rs)
-/// rt = [imm + rs]
+// lw rt,imm(rs)
+// rt = [imm + rs]
 fn op_lw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LW");
 
@@ -266,8 +266,6 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
 
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
-
-    println!("LW_DEBUG:\ni: {i}\nrt: {rt:?}\nrs: {rs:?}\ns: {s}\naddr: {addr}");
 
     let val = psx.load32(addr);
 
@@ -299,8 +297,8 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Shift left logical
-/// sll rd,rt,imm
-/// rd = rt << (0x00..0x1f)
+// sll rd,rt,imm
+// rd = rt << (0x00..0x1f)
 fn op_sll(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SLL");
     let i = inst.shamt();
@@ -315,8 +313,8 @@ fn op_sll(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Add Immediate Unsigned
-/// addiu rt,rs,imm
-/// rt = rs + (-0x8000..+0x7fff)
+// addiu rt,rs,imm
+// rt = rs + (-0x8000..+0x7fff)
 fn op_addiu(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec ADDIU");
     let i = inst.imm_se();
@@ -331,8 +329,8 @@ fn op_addiu(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Add Immediate
-/// addi rt,rs,imm
-/// rt = rs + (-0x8000..+0x7fff) (with overflow trap)
+// addi rt,rs,imm
+// rt = rs + (-0x8000..+0x7fff) (with overflow trap)
 //
 // From Flandrin's Emulation Guide:
 //  The cast to i32 is important because something like 0x4 + 0xffffffff is
@@ -358,8 +356,8 @@ fn op_addi(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Jump
-/// j addr
-/// pc = (pc & 0xf000_0000) + (addr * 4), ra = $ + 8
+// j addr
+// pc = (pc & 0xf000_0000) + (addr * 4), ra = $ + 8
 fn op_j(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec J");
     let addr = inst.addr();
@@ -370,8 +368,8 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Branch if not equal
-/// bne rs,rt,addr
-/// if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+// bne rs,rt,addr
+// if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
 fn op_bne(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec BNE");
     let i = inst.imm_se();
@@ -391,8 +389,8 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
 /* Coprocessor logic */
 
 /// Invoke coprocessor 0
-/// cop0 cop_op
-/// exec cop0 command 0x0..0x1ff_ffff
+// cop0 cop_op
+// exec cop0 command 0x0..0x1ff_ffff
 fn op_cop0(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec COP0");
     match inst.cop_op() {
@@ -402,8 +400,8 @@ fn op_cop0(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Move to coprocessor 0
-/// mtc0 rt,rd
-/// cop#_(data_reg) = rt
+// mtc0 rt,rd
+// cop#_(data_reg) = rt
 fn op_mtc0(psx: &mut Psx, inst: Instruction) { 
     log::trace!("subexec MTC0");
     let cpu_rt = inst.rt();
