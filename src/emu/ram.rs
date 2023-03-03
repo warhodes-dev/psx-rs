@@ -1,10 +1,17 @@
+
+
+pub const RAM_SIZE : usize = 2 * 1024 * 1024;
+pub const RAM_START: u32   = 0x0000_0000;
+pub const RAM_END: u32     = RAM_START + RAM_SIZE as u32;
+
 pub struct Ram {
-    //mem: Vec<u32>,
+    mem: Vec<u32>,
 }
 
 impl Ram {
     pub fn new() -> Self {
-        Ram {}
+        let mem = vec![0xB0BA_CAFE; RAM_SIZE / 4];
+        Ram { mem }
     }
 }
 

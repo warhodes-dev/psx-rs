@@ -33,7 +33,7 @@ pub fn op_mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
 pub struct ProcessorStatus(u32);
 
 impl ProcessorStatus {
-    pub fn isolate_cache(self) -> bool {
+    pub fn is_isolate_cache(self) -> bool {
         let ProcessorStatus(status) = self;
         status & 0x10000 != 0
     }

@@ -86,20 +86,20 @@ pub fn handle_next_instruction(psx: &mut Psx) {
 
     // Primary opcode
     match inst.opcode() {
-        0x0F => op_lui   (psx, inst),
-        0x0D => op_ori   (psx, inst),
-        0x23 => op_lw    (psx, inst),
-        0x2B => op_sw    (psx, inst),
-        0x08 => op_addi  (psx, inst),
-        0x09 => op_addiu (psx, inst),
-        0x02 => op_j     (psx, inst),
-        0x10 => op_cop0  (psx, inst),
-        0x05 => op_bne   (psx, inst),
+        0x0F => op_lui(psx, inst),
+        0x0D => op_ori(psx, inst),
+        0x23 => op_lw(psx, inst),
+        0x2B => op_sw(psx, inst),
+        0x08 => op_addi(psx, inst),
+        0x09 => op_addiu(psx, inst),
+        0x02 => op_j(psx, inst),
+        0x10 => op_cop0(psx, inst),
+        0x05 => op_bne(psx, inst),
         0x00 => {
             // Secondary opcode
             match inst.funct() { 
-                0x00 => op_sll (psx, inst),
-                0x25 => op_or  (psx, inst),
+                0x00 => op_sll(psx, inst),
+                0x25 => op_or(psx, inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x}"),
             }
         }
@@ -255,7 +255,7 @@ fn op_ori(psx: &mut Psx, inst: Instruction) {
 fn op_lw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LW");
 
-    if psx.cop0.status().isolate_cache() {
+    if psx.cop0.status().is_isolate_cache() {
         log::warn!("ignoring load while cache is isolated");
         return;
     }
@@ -276,12 +276,12 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Store word
-/// sw rt,imm(rs)
-/// [imm + rs] = rt
+// sw rt,imm(rs)
+// [imm + rs] = rt
 fn op_sw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SW");
 
-    if psx.cop0.status().isolate_cache() {
+    if psx.cop0.status().is_isolate_cache() {
         log::warn!("ignoring store while cache is isolated");
         return;
     }
