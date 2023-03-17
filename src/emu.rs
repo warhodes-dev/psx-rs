@@ -46,7 +46,7 @@ impl Psx {
                 return self.ram.load32(offset);
             }
             map::Region::MemCtl(_mapping) => {
-                log::warn!("read from memctrl region, but this is unimplemented");
+                log::warn!("read from memctrl region, but this is unsupported");
                 return 0;
             },
             map::Region::RamCtl(_mapping) => {
