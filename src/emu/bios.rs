@@ -1,4 +1,4 @@
-//! Module for handling database of bios versions
+//! Module for handling bios access and database of bios versions
 
 use crate::emu::access::{AccessWidth, Accessable};
 

@@ -99,6 +99,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
             match inst.funct() { 
                 0x00 => op_sll(psx, inst),
                 0x25 => op_or(psx, inst),
+                0x2b => op_sltu(psx, inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             }
         }
@@ -383,6 +384,24 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     if s != t {
         psx.cpu.branch(i);
     }
+
+    psx.cpu.handle_pending_load();
+}
+
+/// Set on less than unsigned
+// stlu rd,rs,rt
+// if rs<rt (unsigned comparison) then rd=1 else rd=0
+fn op_sltu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SLTU");
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+    let flag = (s < t) as u32;
+
+    psx.cpu.set_reg(rd, flag);
 
     psx.cpu.handle_pending_load();
 }
