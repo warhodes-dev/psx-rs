@@ -1,4 +1,6 @@
+//! Access executable RAM (read and write) 
 
+use crate::emu::access::{Accessable, AccessWidth};
 
 pub const RAM_SIZE : usize = 2 * 1024 * 1024;
 pub const RAM_START: u32   = 0xa000_0000;
@@ -14,73 +16,52 @@ impl Ram {
         Ram { mem }
     }
 
-    // TODO: Generalize this to support u8, u16, and u32
-    fn load(&self, offset: usize) -> u32 {
-        self.mem[offset / 4]
+    pub fn load<T: Accessable>(&self, offset: u32) -> T {
+        log::trace!("ram.load(0x{offset:08x}) ({:?})", T::width());
+
+
+        // Get value from correct byte subindex
+        let word = self.mem[offset as usize >> 2];
+        let sized_word = match T::width() {
+            AccessWidth::Byte => {
+                let shift = (offset & 3) * 8;
+                (word >> shift) & 0xff
+            }
+            AccessWidth::Short => {
+                let shift = (offset >> 1 & 1) * 16 ;
+                (word >> shift) & 0xffff
+            }
+            AccessWidth::Long => word,
+        };
+        Accessable::from_u32(sized_word)
     }
 
-    pub fn load32(&self, offset: u32) -> u32 {
-        log::trace!("ram.load32(0x{offset:08x})");
-        self.load(offset as usize)
-    }
+    pub fn store<T: Accessable>(&mut self, offset: u32, val: T) {
+        log::trace!("ram.store(0x{offset:08x}) ({:?})", T::width());
 
-    fn store(&mut self, offset: usize, val: u32) {
-        self.mem[offset / 4] = val;
-    }
+        // Shift value into correct byte subindex
+        match T::width() {
+            AccessWidth::Byte => {
+                let word = self.mem[offset as usize / 4];
+                let shift = (offset & 3) * 8;
+                let diff = val.as_u32() << shift;
+                let mask = 0xff << shift;
 
-    pub fn store32(&mut self, offset: u32, val: u32) {
-        self.store(offset as usize, val);
-    }
-}
+                let new_word = !mask & word | diff;
+                self.mem[offset as usize / 4] = new_word;
+            },
+            AccessWidth::Short => {
+                let word = self.mem[offset as usize / 4];
+                let shift = (offset >> 1 & 1) * 16;
+                let diff = val.as_u32() << shift;
+                let mask = 0xffff << shift;
 
-/*
-impl Ram {
-    pub fn new() -> Self {
-        let mem = vec![0xffff_ffff; RAM_SIZE]; 
-        Ram {
-            mem,
+                let new_word = !mask & word | diff;
+                self.mem[offset as usize / 4] = new_word;
+            },
+            AccessWidth::Long => {
+                self.mem[offset as usize / 4] = val.as_u32();
+            }
         }
     }
-
-    pub fn set_ram(&mut self, bios: &[u8; BIOS_SIZE]) {
-        let mut bios_u32: Vec<u32> = Vec::new();
-
-        for chunk in bios.chunks(4) {
-            let quad = chunk.try_into().expect("Bios size must be a multiple of 4");
-            let word = u32::from_le_bytes(quad);
-            bios_u32.push(word);
-        }
-
-        let (bios_region, _ram_region) = self.regions();
-        bios_region.copy_from_slice(bios_u32.as_slice());
-    }
-
-    fn store(&mut self, offset: usize, val: u32) {
-        self.mem[offset / 4] = val;
-    }
-
-    fn load(&self, offset: usize) -> u32 {
-        self.mem[offset / 4]
-    }
-
-    pub fn ram_load(&self, offset: u32) ->  u32 {
-        let offset = RAM_OFFSET + offset as usize;
-        self.load(offset)
-    }
-
-    pub fn ram_store(&mut self, offset: u32, val: u32) {
-        let offset = RAM_OFFSET + offset as usize;
-        self.store(offset, val);
-    }
-
-    pub fn bios_load(&self, offset: u32) -> u32 {
-        log::trace!("bios_load(0x{offset:08x})");
-        let offset = BIOS_OFFSET + offset as usize;
-        self.load(offset)
-    }
-
-    fn regions(&mut self) -> (&mut [u32], &mut [u32]) {
-        self.mem.split_at_mut(BIOS_SIZE / 4)
-    }
 }
-*/

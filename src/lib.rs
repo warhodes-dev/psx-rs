@@ -1,3 +1,5 @@
+#![feature(array_chunks)]
+
 use std::{path::Path, fs::File, io::Read};
 use anyhow::Result;
 

@@ -65,9 +65,8 @@ impl Cpu {
         let offset = offset << 2;
         let mut pc = self.pc;
 
-        pc = pc.wrapping_add(offset);
         // Compensate for hardcoded +4 in handle_instruction
-        pc = pc.wrapping_sub(4);
+        pc = pc.wrapping_add(offset).wrapping_sub(4);
 
         self.pc = pc;
     }
@@ -100,16 +99,16 @@ pub fn handle_next_instruction(psx: &mut Psx) {
             match inst.funct() { 
                 0x00 => op_sll(psx, inst),
                 0x25 => op_or(psx, inst),
-                _else => panic!("unknown secondary opcode: 0x{_else:02x}"),
+                _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             }
         }
-        _else => panic!("unknown primary opcode: 0x{_else:02x}"),
+        _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
     }
 }
 
 fn fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
-    let inst_raw = psx.load32(addr);
+    let inst_raw = psx.load::<u32>(addr);
     let inst = Instruction(inst_raw);
     log::trace!("fetched instruction: 0x{inst_raw:08x}"); 
     inst
@@ -202,6 +201,8 @@ impl Instruction {
     }
 }
 
+/* === Primary Opcodes === */
+
 /// Load upper (immediate)
 // lui rt,imm
 // rt = (0x0000..0xffff) << 16
@@ -267,7 +268,7 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
 
-    let val = psx.load32(addr);
+    let val = psx.load::<u32>(addr);
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
@@ -293,7 +294,7 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
     let val = psx.cpu.reg(rt);
 
     psx.cpu.handle_pending_load();
-    psx.store32(addr, val);
+    psx.store::<u32>(addr, val);
 }
 
 /// Shift left logical
@@ -386,7 +387,7 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
 }
 
-/* Coprocessor logic */
+/* === Coprocessor logic === */
 
 /// Invoke coprocessor 0
 // cop0 cop_op
