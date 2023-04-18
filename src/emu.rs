@@ -5,8 +5,6 @@ pub mod cop;
 pub mod ram;
 pub mod access;
 
-use std::thread::AccessError;
-
 use crate::emu::{
     bios::Bios, 
     cpu::Cpu,
@@ -69,8 +67,8 @@ impl Psx {
         }
     }
 
-    pub fn store<T: Accessable>(&mut self, addr: u32, val: u32) {
-        log::trace!("psx.store32(0x{addr:08x}, {val})");
+    pub fn store<T: Accessable>(&mut self, addr: u32, val: T) {
+        log::trace!("psx.store32(0x{addr:08x}, {})", val.as_u32());
 
         if cfg!(debug_assertions) {
             if T::width() == AccessWidth::Long && addr % 4 != 0 {
@@ -87,7 +85,7 @@ impl Psx {
             },
             map::Region::Ram(mapping) => {
                 let offset = addr - mapping.base;
-                self.ram.store::<u32>(offset, val);
+                self.ram.store::<T>(offset, val);
             }
             map::Region::MemCtl(_mapping) => {
                 log::warn!("wrote to memctrl region, but this is unimplemented");

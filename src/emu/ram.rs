@@ -19,7 +19,6 @@ impl Ram {
     pub fn load<T: Accessable>(&self, offset: u32) -> T {
         log::trace!("ram.load(0x{offset:08x}) ({:?})", T::width());
 
-
         // Get value from correct byte subindex
         let word = self.mem[offset as usize >> 2];
         let sized_word = match T::width() {

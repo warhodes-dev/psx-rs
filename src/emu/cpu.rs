@@ -99,7 +99,8 @@ pub fn handle_next_instruction(psx: &mut Psx) {
             match inst.funct() { 
                 0x00 => op_sll(psx, inst),
                 0x25 => op_or(psx, inst),
-                0x2b => op_sltu(psx, inst),
+                0x2B => op_sltu(psx, inst),
+                0x21 => op_addu(psx, inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             }
         }
@@ -109,7 +110,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
 
 fn fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
-    let inst_raw = psx.load::<u32>(addr);
+    let inst_raw = psx.load(addr);
     let inst = Instruction(inst_raw);
     log::trace!("fetched instruction: 0x{inst_raw:08x}"); 
     inst
@@ -119,7 +120,7 @@ fn fetch_instruction(psx: &mut Psx) -> Instruction {
 pub struct PendingLoad {
     target_reg: RegisterIndex,
     val: u32,
-    delay_cycles: u32,
+    //delay_cycles: u32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -214,6 +215,8 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
 
     // Low 16 bits are set to 0
     let v = i << 16;
+
+    psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, v);
 }
 
@@ -269,7 +272,7 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
 
-    let val = psx.load::<u32>(addr);
+    let val = psx.load(addr);
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
@@ -295,7 +298,7 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
     let val = psx.cpu.reg(rt);
 
     psx.cpu.handle_pending_load();
-    psx.store::<u32>(addr, val);
+    psx.store(addr, val);
 }
 
 /// Shift left logical
@@ -390,7 +393,7 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
 
 /// Set on less than unsigned
 // stlu rd,rs,rt
-// if rs<rt (unsigned comparison) then rd=1 else rd=0
+// if rs < rt (unsigned comparison) then rd=1 else rd=0
 fn op_sltu(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SLTU");
     let rd = inst.rd();
@@ -401,9 +404,26 @@ fn op_sltu(psx: &mut Psx, inst: Instruction) {
     let t = psx.cpu.reg(rt);
     let flag = (s < t) as u32;
 
-    psx.cpu.set_reg(rd, flag);
 
     psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, flag);
+}
+
+/// Add unsigned
+// addu rd,rs,rt
+// rd = rs + rt
+fn op_addu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ADDU");
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+    let d = s.wrapping_add(t);
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, d);
 }
 
 /* === Coprocessor logic === */
