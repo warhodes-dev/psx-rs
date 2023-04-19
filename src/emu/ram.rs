@@ -26,11 +26,11 @@ impl Ram {
                 let shift = (offset & 3) * 8;
                 (word >> shift) & 0xff
             }
-            AccessWidth::Short => {
+            AccessWidth::Half => {
                 let shift = (offset >> 1 & 1) * 16 ;
                 (word >> shift) & 0xffff
             }
-            AccessWidth::Long => word,
+            AccessWidth::Word => word,
         };
         Accessable::from_u32(sized_word)
     }
@@ -49,7 +49,7 @@ impl Ram {
                 let new_word = !mask & word | diff;
                 self.mem[offset as usize / 4] = new_word;
             },
-            AccessWidth::Short => {
+            AccessWidth::Half => {
                 let word = self.mem[offset as usize / 4];
                 let shift = (offset >> 1 & 1) * 16;
                 let diff = val.as_u32() << shift;
@@ -58,7 +58,7 @@ impl Ram {
                 let new_word = !mask & word | diff;
                 self.mem[offset as usize / 4] = new_word;
             },
-            AccessWidth::Long => {
+            AccessWidth::Word => {
                 self.mem[offset as usize / 4] = val.as_u32();
             }
         }

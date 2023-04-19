@@ -3,8 +3,8 @@
 #[derive(Debug, Eq, PartialEq)]
 pub enum AccessWidth {
     Byte,
-    Short,
-    Long,
+    Half,
+    Word,
 }
 
 pub trait Accessable {
@@ -30,7 +30,7 @@ impl Accessable for u8 {
 }
 
 impl Accessable for u16 {
-    fn width() -> AccessWidth { AccessWidth::Short }
+    fn width() -> AccessWidth { AccessWidth::Half }
 
     fn from_u32(word: u32) -> u16 { word as u16 }
     fn from_u16(word: u16) -> u16 { word }
@@ -42,7 +42,7 @@ impl Accessable for u16 {
 }
 
 impl Accessable for u32 {
-    fn width() -> AccessWidth { AccessWidth::Long }
+    fn width() -> AccessWidth { AccessWidth::Word }
 
     fn from_u32(word: u32) -> u32 { word }
     fn from_u16(word: u16) -> u32 { word as u32 }

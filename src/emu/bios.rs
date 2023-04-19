@@ -35,11 +35,11 @@ impl Bios {
                 let shift = (offset & 3) * 8;
                 (word >> shift) & 0xff
             }
-            AccessWidth::Short => {
+            AccessWidth::Half => {
                 let shift = (offset >> 1 & 1) * 16 ;
                 (word >> shift) & 0xffff
             }
-            AccessWidth::Long => word,
+            AccessWidth::Word => word,
         };
         Accessable::from_u32(sized_word)
     }

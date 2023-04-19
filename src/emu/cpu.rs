@@ -94,6 +94,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
         0x02 => op_j(psx, inst),
         0x10 => op_cop0(psx, inst),
         0x05 => op_bne(psx, inst),
+        0x29 => op_sh(psx, inst),
         0x00 => {
             // Secondary opcode
             match inst.funct() { 
@@ -424,6 +425,30 @@ fn op_addu(psx: &mut Psx, inst: Instruction) {
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, d);
+}
+
+/// Store halfword
+//  rt,imm(rs)
+//  [imm+rs]=(rt & 0xffff)
+fn op_sh(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SH");
+
+    if psx.cop0.status().is_isolate_cache() {
+        log::warn!("ignoring store while cache is isolated");
+        return;
+    }
+
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let addr = s.wrapping_add(i);
+    let val = psx.cpu.reg(rt) as u16;
+
+    psx.cpu.handle_pending_load();
+    psx.store(addr, val);
+    panic!("Did you see it? It's just a pigeon, flying to it's nest.");
 }
 
 /* === Coprocessor logic === */

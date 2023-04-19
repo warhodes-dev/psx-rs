@@ -35,21 +35,22 @@ impl Psx {
         log::trace!("psx.load(0x{addr:08x}) ({:?})", T::width());
 
         if cfg!(debug_assertions) {
-            if T::width() == AccessWidth::Long && addr % 4 != 0 {
+            if T::width() == AccessWidth::Word && addr % 4 != 0 {
                 panic!("unaligned load<32> at address 0x{addr:08x}");
             }
-            if T::width() == AccessWidth::Short && addr % 2 != 0 {
+            if T::width() == AccessWidth::Half && addr % 2 != 0 {
                 panic!("unaligned load<16> at address 0x{addr:08x}");
             }
         }
 
-        match map::get_region(addr) {
+        let paddr = map::mask_region(addr);
+        match map::get_region(paddr) {
             map::Region::Bios(mapping) => {
-                let offset = addr - mapping.base;
+                let offset = paddr - mapping.base;
                 return self.bios.load::<T>(offset);
             },
             map::Region::Ram(mapping) => {
-                let offset = addr - mapping.base;
+                let offset = paddr - mapping.base;
                 return self.ram.load::<T>(offset);
             }
             map::Region::MemCtl(_mapping) => {
@@ -68,23 +69,24 @@ impl Psx {
     }
 
     pub fn store<T: Accessable>(&mut self, addr: u32, val: T) {
-        log::trace!("psx.store32(0x{addr:08x}, {})", val.as_u32());
+        log::trace!("psx.store(0x{addr:08x}, {}) ({:?})", val.as_u32(), T::width());
 
         if cfg!(debug_assertions) {
-            if T::width() == AccessWidth::Long && addr % 4 != 0 {
+            if T::width() == AccessWidth::Word && addr % 4 != 0 {
                 panic!("unaligned store<32> at address 0x{addr:08x}");
             }
-            if T::width() == AccessWidth::Short && addr % 2 != 0 {
+            if T::width() == AccessWidth::Half && addr % 2 != 0 {
                 panic!("unaligned store<16> at address 0x{addr:08x}");
             }
         }
 
-        match map::get_region(addr) {
+        let paddr = map::mask_region(addr);
+        match map::get_region(paddr) {
             map::Region::Bios(_mapping) => {
                 panic!("attempt to write to bios region which is read only");
             },
             map::Region::Ram(mapping) => {
-                let offset = addr - mapping.base;
+                let offset = paddr - mapping.base;
                 self.ram.store::<T>(offset, val);
             }
             map::Region::MemCtl(_mapping) => {
