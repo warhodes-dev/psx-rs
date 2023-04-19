@@ -11,35 +11,22 @@ pub mod driver;
 
 pub struct Context {
     pub psx: Box<emu::Psx>,
-    pub video_driver: Option<VideoDriver>,
+    pub video_driver: VideoDriver,
 }
 
-pub struct ContextBuilder {
-    pub psx: emu::Psx,
-    pub video_driver: Option<VideoDriver>,
-}
-
-impl ContextBuilder {
-    pub fn new(bios_path: &Path) -> Result<ContextBuilder> {
+impl Context {
+    pub fn new(bios_path: &Path) -> Result<Context, Box<dyn std::error::Error>> {
         let bios = load_bios_buffer(bios_path)?;
         let psx = emu::Psx::new_from_bios(&bios);
-        Ok( ContextBuilder {
-            psx,
-            video_driver: None,
-        })
-    }
 
-    pub fn with_sdl2(mut self) -> Result<ContextBuilder, Box<dyn std::error::Error>> {
         let sdl_context = sdl2::init()?;
         let video_driver = VideoDriver::new(&sdl_context)?;
-        self.video_driver = Some(video_driver);
-        Ok(self)
-    }
+        let audio_driver = AudioDriver::new(&sdl_context)?;
+        let input_driver = InputDriver::new(&sdl_context)?;
 
-    pub fn init(self) -> Result<Context> {
         Ok( Context {
-            psx: Box::new(self.psx),
-            video_driver: self.video_driver,
+            psx: Box::new(psx),
+            video_driver,
         })
     }
 }
