@@ -17,13 +17,6 @@ fn main() -> Result<()> {
         //.filter_level(log::LevelFilter::Trace)
         //.init();
 
-    /*let ctx = Context::new(Path::new("./scph1001.bin"))?;
-    let mut psx = *ctx.psx;
-
-    for i in 0..20000 {
-        log::trace!("=== Instruction {i:2} issued ===");
-        cpu::handle_next_instruction(&mut psx);
-    }
-    */
-    Ok(())
+    let mut ctx = Context::new(Path::new("./scph1001.bin"))?;
+    ctx.run();
 }

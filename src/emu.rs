@@ -64,7 +64,11 @@ impl Psx {
             map::Region::CacheCtl(_mapping) => {
                 log::warn!("read from cachectrl region, but this is unsupported");
                 return T::from_u32(0);
-            }
+            },
+            map::Region::Spu(_mapping) => {
+                log::warn!("read from SPU memory region, but this is unsupported");
+                return T::from_u32(0);
+            },
         }
     }
 
@@ -97,7 +101,10 @@ impl Psx {
             },
             map::Region::CacheCtl(_mapping) => {
                 log::warn!("wrote to cachectrl region, but this is unsupported");
-            }
+            },
+            map::Region::Spu(_mapping) => {
+                log::warn!("wrote to SPU memory region, but this is unsupported");
+            },
         }
     }
 }

@@ -20,6 +20,7 @@ const BIOS     : Mapping = Mapping::def(0x1fc0_0000, 512 * 1024 /* 512 KB */);
 const MEM_CTL  : Mapping = Mapping::def(0x1f80_1000, 36);
 const RAM_CTL  : Mapping = Mapping::def(0x1f80_1060, 4);
 const CACHE_CTL: Mapping = Mapping::def(0xfffe_0130, 4);
+const SPU      : Mapping = Mapping::def(0x1f80_1c00, 400);
 
 lazy_static! {
     /// Contains the base address all memory intervals.
@@ -29,6 +30,7 @@ lazy_static! {
         MEM_CTL.range()   => Region::MemCtl(MEM_CTL),
         RAM_CTL.range()   => Region::RamCtl(RAM_CTL),
         CACHE_CTL.range() => Region::CacheCtl(CACHE_CTL),
+        SPU.range()       => Region::Spu(SPU),
     };
 }
 
@@ -40,6 +42,7 @@ pub enum Region {
     MemCtl(Mapping),
     RamCtl(Mapping),
     CacheCtl(Mapping),
+    Spu(Mapping),
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -2,34 +2,39 @@
 
 use std::{path::Path, fs::File, io::Read};
 use anyhow::Result;
-use driver::{
-    video::VideoDriver,
-    audio::AudioDriver,
-};
+use sdl::SdlFrontend;
 
 pub mod emu;
-pub mod driver;
+pub mod sdl;
 
 /// The interactive context of the PSX-RS emulator. Provides layer between emulation core and SDL context.
 pub struct Context {
     pub psx: Box<emu::Psx>,
-    pub video_driver: VideoDriver,
+    pub sdl: Option<sdl::SdlFrontend>,
 }
 
 impl Context {
-    pub fn new(bios_path: &Path) -> Result<Context, Box<dyn std::error::Error>> {
+    pub fn new(bios_path: &Path) -> Result<Context> {
         let bios = load_bios_buffer(bios_path)?;
         let psx = emu::Psx::new_from_bios(&bios);
-
-        let sdl_context = sdl2::init()?;
-        let video_driver = VideoDriver::new(&sdl_context)?;
-        let audio_driver = AudioDriver::new(&sdl_context)?;
-        let input_driver = InputDriver::new(&sdl_context)?;
+        
+        //let sdl = sdl::SdlFrontend::new()?;
 
         Ok( Context {
             psx: Box::new(psx),
-            video_driver,
+            //sdl: Some(sdl),
+            sdl: None,
         })
+    }
+
+    pub fn run(&mut self) -> ! {
+        let mut i = 0;
+        loop {
+            log::trace!("=== Instruction {i:2} issued ===");
+            i += 1;
+            crate::emu::cpu::handle_next_instruction(&mut self.psx);
+        }
+        
     }
 }
 

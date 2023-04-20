@@ -448,7 +448,6 @@ fn op_sh(psx: &mut Psx, inst: Instruction) {
 
     psx.cpu.handle_pending_load();
     psx.store(addr, val);
-    panic!("Did you see it? It's just a pigeon, flying to it's nest.");
 }
 
 /* === Coprocessor logic === */

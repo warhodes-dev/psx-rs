@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use sdl2::{audio::{AudioDevice, AudioCallback, AudioSpecDesired}, Sdl};
 
 struct BasicWave {
@@ -27,8 +28,8 @@ pub struct AudioDriver {
 }
 
 impl AudioDriver {
-    pub fn new(sdl_context: &Sdl) -> Result<Self, Box<dyn std::error::Error>> {
-        let audio_subsystem = sdl_context.audio()?;
+    pub fn new(sdl_context: &Sdl) -> Result<Self> {
+        let audio_subsystem = sdl_context.audio().map_err(|e| anyhow!(e))?;
 
         let desired_spec = AudioSpecDesired {
             freq: Some(44_100),
@@ -44,7 +45,7 @@ impl AudioDriver {
                 phase: 0.0,
                 volume: 0.03,
             }
-        })?;
+        }).map_err(|e| anyhow!(e))?;
 
         log::info!("SDL audio subsystem initialized");
         Ok( AudioDriver {

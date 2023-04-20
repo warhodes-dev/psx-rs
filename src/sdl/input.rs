@@ -1,4 +1,4 @@
-
+use anyhow::{anyhow, Result};
 use sdl2::{
     event::Event,
     keyboard::Keycode,
@@ -11,8 +11,8 @@ pub struct InputDriver {
 }
 
 impl InputDriver {
-    pub fn new(sdl_context: &Sdl) -> Result<Self, Box<dyn std::error::Error>> {
-        let events = sdl_context.event_pump()?;
+    pub fn new(sdl_context: &Sdl) -> Result<Self> {
+        let events = sdl_context.event_pump().map_err(|e| anyhow!(e))?;
         log::info!("SDL input handler initialized");
         Ok(InputDriver{events})
     }
