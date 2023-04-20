@@ -4,11 +4,13 @@ use std::{path::Path, fs::File, io::Read};
 use anyhow::Result;
 use driver::{
     video::VideoDriver,
+    audio::AudioDriver,
 };
 
 pub mod emu;
 pub mod driver;
 
+/// The interactive context of the PSX-RS emulator. Provides layer between emulation core and SDL context.
 pub struct Context {
     pub psx: Box<emu::Psx>,
     pub video_driver: VideoDriver,
