@@ -70,6 +70,14 @@ impl Cpu {
 
         self.pc = pc;
     }
+
+    fn _inc_pc(&mut self) {
+        self.pc = self.pc.wrapping_add(4);
+    }
+
+    fn _dec_pc(&mut self) {
+        self.pc = self.pc.wrapping_sub(4);
+    }
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
@@ -92,9 +100,11 @@ pub fn handle_next_instruction(psx: &mut Psx) {
         0x08 => op_addi(psx, inst),
         0x09 => op_addiu(psx, inst),
         0x02 => op_j(psx, inst),
+        0x03 => op_jal(psx, inst),
         0x10 => op_cop0(psx, inst),
         0x05 => op_bne(psx, inst),
         0x29 => op_sh(psx, inst),
+        0x0c => op_andi(psx, inst),
         0x00 => {
             // Secondary opcode
             match inst.funct() { 
@@ -363,10 +373,25 @@ fn op_addi(psx: &mut Psx, inst: Instruction) {
 
 /// Jump
 // j addr
-// pc = (pc & 0xf000_0000) + (addr * 4), ra = $ + 8
+// pc = (pc & 0xf000_0000) + (addr * 4)
 fn op_j(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec J");
     let addr = inst.addr();
+
+    psx.cpu.pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
+
+    psx.cpu.handle_pending_load();
+}
+
+/// Jump and link
+// jal addr
+// pc = (pc & 0xf000_0000) + (addr * 4); ra = $ + 8
+fn op_jal(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec JAL");
+    let addr = inst.addr();
+    let ra = RegisterIndex(31);
+
+    psx.cpu.set_reg(ra, psx.cpu.pc);
 
     psx.cpu.pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
 

@@ -10,9 +10,9 @@ use crate::sdl::{
 };
 
 pub struct SdlFrontend {
-    video: VideoDriver,
-    audio: AudioDriver,
-    input: InputDriver,
+    _video: VideoDriver,
+    _audio: AudioDriver,
+    _input: InputDriver,
 }
 
 impl SdlFrontend {
@@ -22,9 +22,9 @@ impl SdlFrontend {
         let audio = AudioDriver::new(&sdl_context)?;
         let input = InputDriver::new(&sdl_context)?;
         Ok(SdlFrontend { 
-            video, 
-            audio,
-            input,
+            _video: video, 
+            _audio: audio,
+            _input: input,
         })
     }
 }

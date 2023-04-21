@@ -2,7 +2,6 @@
 
 use std::{path::Path, fs::File, io::Read};
 use anyhow::Result;
-use sdl::SdlFrontend;
 
 pub mod emu;
 pub mod sdl;
