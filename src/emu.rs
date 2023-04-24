@@ -54,19 +54,27 @@ impl Psx {
                 return self.ram.load::<T>(offset);
             }
             map::Region::MemCtl(_mapping) => {
-                log::warn!("read from memctrl region, but this is unsupported");
+                log::warn!("read from memctrl region (0x{addr:08x}), but this is unsupported");
                 return T::from_u32(0);
             },
             map::Region::RamCtl(_mapping) => {
-                log::warn!("read from ramctrl region, but this is unsupported");
+                log::warn!("read from ramctrl region (0x{addr:08x}), but this is unsupported");
                 return T::from_u32(0);
             },
             map::Region::CacheCtl(_mapping) => {
-                log::warn!("read from cachectrl region, but this is unsupported");
+                log::warn!("read from cachectrl region (0x{addr:08x}), but this is unsupported");
                 return T::from_u32(0);
             },
             map::Region::Spu(_mapping) => {
-                log::warn!("read from SPU memory region, but this is unsupported");
+                log::warn!("read from SPU memory region (0x{addr:08x}), but this is unsupported");
+                return T::from_u32(0);
+            },
+            map::Region::Exp1(_mapping) => {
+                log::warn!("read from expansion region 1 (0x{addr:08x}), but this is unsupported");
+                return T::from_u32(0);
+            },
+            map::Region::Exp2(_mapping) => {
+                log::warn!("read from expansion region 2 (0x{addr:08x}), but this is unsupported");
                 return T::from_u32(0);
             },
         }
@@ -94,17 +102,23 @@ impl Psx {
                 self.ram.store::<T>(offset, val);
             }
             map::Region::MemCtl(_mapping) => {
-                log::warn!("wrote to memctrl region, but this is unimplemented");
+                log::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::RamCtl(_mapping) => {
-                log::warn!("wrote to memctrl region, but this is unimplemented");
+                log::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::CacheCtl(_mapping) => {
-                log::warn!("wrote to cachectrl region, but this is unsupported");
+                log::warn!("wrote to cachectrl region (0x{addr:08x}), but this is unsupported");
             },
             map::Region::Spu(_mapping) => {
-                log::warn!("wrote to SPU memory region, but this is unsupported");
+                log::warn!("wrote to SPU memory region (0x{addr:08x}), but this is unsupported");
             },
+            map::Region::Exp1(_mapping) => {
+                log::warn!("wrote to expansion region 1 (0x{addr:08x}), but this is unsupported");
+            },
+            map::Region::Exp2(_mapping) => {
+                log::warn!("wrote to expansion region 2 (0x{addr:08x}), but this is unsupported");
+            }
         }
     }
 }

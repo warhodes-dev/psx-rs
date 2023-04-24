@@ -15,24 +15,27 @@ const REGION_MASK: [u32; 8] = [
     0xffff_ffff, 0xffff_ffff,
 ];
 
-const RAM      : Mapping = Mapping::def(0x0000_0000, 2 * 1024 * 1024 /* 2 MB */);
-const BIOS     : Mapping = Mapping::def(0x1fc0_0000, 512 * 1024 /* 512 KB */);
+//TODO: Divide this up into real regions and emulated regions.
+//
+//      Main RAM is a real region:  
+//
+//            KUSEG        KSEG0        KSEG1
+//            0x0000_0000, 0x8000_0000, 0xA000_0000
+//
+//      CACHE_CTL (here as just a 4 byte region) is actually
+//      part of 'Internal CPU control registers' region: 
+//
+//            KSEG2
+//            0xfffe_0000
+
+const RAM      : Mapping = Mapping::def(0x0000_0000, n_kib_bytes!(2048) as usize);
+const BIOS     : Mapping = Mapping::def(0x1fc0_0000, n_kib_bytes!(512) as usize);
 const MEM_CTL  : Mapping = Mapping::def(0x1f80_1000, 36);
 const RAM_CTL  : Mapping = Mapping::def(0x1f80_1060, 4);
 const CACHE_CTL: Mapping = Mapping::def(0xfffe_0130, 4);
 const SPU      : Mapping = Mapping::def(0x1f80_1c00, 400);
-
-lazy_static! {
-    /// Contains the base address all memory intervals.
-    static ref MEMORY_MAP: IntervalMap<u32, Region> = interval_map! {
-        BIOS.range()      => Region::Bios(BIOS),
-        RAM.range()       => Region::Ram(RAM),
-        MEM_CTL.range()   => Region::MemCtl(MEM_CTL),
-        RAM_CTL.range()   => Region::RamCtl(RAM_CTL),
-        CACHE_CTL.range() => Region::CacheCtl(CACHE_CTL),
-        SPU.range()       => Region::Spu(SPU),
-    };
-}
+const EXP1     : Mapping = Mapping::def(0x1f00_0000, n_kib_bytes!(8) as usize);
+const EXP2     : Mapping = Mapping::def(0x1f80_2000, n_kib_bytes!(8) as usize);
 
 /// Contains the base address of the associated region
 #[derive(Copy, Clone)]
@@ -43,7 +46,25 @@ pub enum Region {
     RamCtl(Mapping),
     CacheCtl(Mapping),
     Spu(Mapping),
+    Exp1(Mapping),
+    Exp2(Mapping),
 }
+
+lazy_static! {
+    /// Contains the base address all memory intervals.
+    static ref MEMORY_MAP: IntervalMap<u32, Region> = interval_map! {
+        BIOS.range()      => Region::Bios(BIOS),
+        RAM.range()       => Region::Ram(RAM),
+        MEM_CTL.range()   => Region::MemCtl(MEM_CTL),
+        RAM_CTL.range()   => Region::RamCtl(RAM_CTL),
+        CACHE_CTL.range() => Region::CacheCtl(CACHE_CTL),
+        SPU.range()       => Region::Spu(SPU),
+        EXP1.range()      => Region::Exp1(EXP1),
+        EXP2.range()      => Region::Exp2(EXP2),
+    };
+}
+
+
 
 #[derive(Debug, Copy, Clone)]
 pub struct Mapping {

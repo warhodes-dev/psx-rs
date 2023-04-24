@@ -1,5 +1,7 @@
 #![feature(array_chunks)]
 
+#[macro_use] extern crate byte_unit;
+
 use std::{path::Path, fs::File, io::Read};
 use anyhow::Result;
 

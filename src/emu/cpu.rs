@@ -71,11 +71,11 @@ impl Cpu {
         self.pc = pc;
     }
 
-    fn _inc_pc(&mut self) {
+    fn inc_pc(&mut self) {
         self.pc = self.pc.wrapping_add(4);
     }
 
-    fn _dec_pc(&mut self) {
+    fn dec_pc(&mut self) {
         self.pc = self.pc.wrapping_sub(4);
     }
 }
@@ -93,6 +93,8 @@ pub fn handle_next_instruction(psx: &mut Psx) {
 
     // Primary opcode
     match inst.opcode() {
+        0x04 => op_beq(psx, inst),
+        0x05 => op_bne(psx, inst),
         0x0F => op_lui(psx, inst),
         0x0D => op_ori(psx, inst),
         0x23 => op_lw(psx, inst),
@@ -102,13 +104,15 @@ pub fn handle_next_instruction(psx: &mut Psx) {
         0x02 => op_j(psx, inst),
         0x03 => op_jal(psx, inst),
         0x10 => op_cop0(psx, inst),
-        0x05 => op_bne(psx, inst),
+        0x20 => op_lb(psx, inst),
+        0x28 => op_sb(psx, inst),
         0x29 => op_sh(psx, inst),
         0x0c => op_andi(psx, inst),
         0x00 => {
             // Secondary opcode
             match inst.funct() { 
                 0x00 => op_sll(psx, inst),
+                0x08 => op_jr(psx, inst),
                 0x25 => op_or(psx, inst),
                 0x2B => op_sltu(psx, inst),
                 0x21 => op_addu(psx, inst),
@@ -212,6 +216,11 @@ impl Instruction {
         let Instruction(op) = self;
         op & 0x3ff_ffff
     }
+
+    fn inner(self) -> u32 {
+        let Instruction(inner) = self;
+        inner
+    }
 }
 
 /* === Primary Opcodes === */
@@ -289,6 +298,54 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rt, val);
 }
 
+/// Load halfword
+// lw rt,imm(rs)
+// rt = [imm + rs]
+fn op_lh(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec LH");
+
+    if psx.cop0.status().is_isolate_cache() {
+        log::warn!("ignoring load while cache is isolated");
+        return;
+    }
+
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let addr = s.wrapping_add(i);
+
+    let val = psx.load::<u16>(addr);
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rt, val as u32);
+}
+
+/// Load byte 
+// lw rt,imm(rs)
+// rt = [imm + rs]
+fn op_lb(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec LB");
+
+    if psx.cop0.status().is_isolate_cache() {
+        log::warn!("ignoring load while cache is isolated");
+        return;
+    }
+
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let addr = s.wrapping_add(i);
+
+    let val = psx.load::<u8>(addr) as i8;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rt, val as u32);
+}
+
 /// Store word
 // sw rt,imm(rs)
 // [imm + rs] = rt
@@ -307,6 +364,52 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
     let val = psx.cpu.reg(rt);
+
+    psx.cpu.handle_pending_load();
+    psx.store(addr, val);
+}
+
+/// Store halfword
+//  rt,imm(rs)
+//  [imm+rs]=(rt & 0xffff)
+fn op_sh(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SH");
+
+    if psx.cop0.status().is_isolate_cache() {
+        log::warn!("ignoring store while cache is isolated");
+        return;
+    }
+
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let addr = s.wrapping_add(i);
+    let val = psx.cpu.reg(rt) as u16;
+
+    psx.cpu.handle_pending_load();
+    psx.store(addr, val);
+}
+
+/// Store byte
+// rt,imm(rs)
+// [imm+rs]=(rt & 0xff)
+fn op_sb(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SB");
+
+    if psx.cop0.status().is_isolate_cache() {
+        log::warn!("ignoring store while cache is isolated");
+        return;
+    }
+
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let addr = s.wrapping_add(i);
+    let val = psx.cpu.reg(rt) as u8;
 
     psx.cpu.handle_pending_load();
     psx.store(addr, val);
@@ -398,6 +501,38 @@ fn op_jal(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
 }
 
+/// Jump register
+// jr rs
+// pc = rs
+fn op_jr(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec JR");
+    let rs = inst.rs();
+    let addr = psx.cpu.reg(rs);
+
+    psx.cpu.pc = addr;
+
+    psx.cpu.handle_pending_load();
+}
+
+/// Branch if equal
+// beq rs,rt,dest
+// if rs = rt, then pc = $ + 4 + (-0x8000 + 0x7fff) * 4
+fn op_beq(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec BEQ");
+    let i = inst.imm_se();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+
+    if s == t {
+        psx.cpu.branch(i);
+    }
+
+    psx.cpu.handle_pending_load();
+}
+
 /// Branch if not equal
 // bne rs,rt,addr
 // if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
@@ -452,27 +587,23 @@ fn op_addu(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rd, d);
 }
 
-/// Store halfword
-//  rt,imm(rs)
-//  [imm+rs]=(rt & 0xffff)
-fn op_sh(psx: &mut Psx, inst: Instruction) {
-    log::trace!("exec SH");
 
-    if psx.cop0.status().is_isolate_cache() {
-        log::warn!("ignoring store while cache is isolated");
-        return;
-    }
 
-    let i = inst.imm_se();
+/// Logical AND immediate
+// rt,rs,imm
+// rt = rs & imm
+fn op_andi(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ANDI");
+    
+    let i = inst.imm();
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
-    let val = psx.cpu.reg(rt) as u16;
+    let s = psx.cpu.reg(rs); 
+    let t = s & i;
 
     psx.cpu.handle_pending_load();
-    psx.store(addr, val);
+    psx.cpu.set_reg(rt, t);
 }
 
 /* === Coprocessor logic === */
@@ -484,7 +615,7 @@ fn op_cop0(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec COP0");
     match inst.cop_op() {
         0x4 => op_mtc0(psx, inst),
-        _else => panic!("unknwon cop0 delegation: {_else:05x}"),
+        _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{:08x})", inst.inner()),
     }
 }
 
