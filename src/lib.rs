@@ -6,12 +6,12 @@ use std::{path::Path, fs::File, io::Read};
 use anyhow::Result;
 
 pub mod emu;
-pub mod sdl;
+//pub mod sdl;
 
-/// The interactive context of the PSX-RS emulator. Provides layer between emulation core and SDL context.
+/// The interactive context of the PSX-RS emulator. Contains the emulation core and the frontend context
 pub struct Context {
     pub psx: Box<emu::Psx>,
-    pub sdl: Option<sdl::SdlFrontend>,
+    //pub sdl: Option<sdl::SdlFrontend>,
 }
 
 impl Context {
@@ -23,8 +23,7 @@ impl Context {
 
         Ok( Context {
             psx: Box::new(psx),
-            //sdl: Some(sdl),
-            sdl: None,
+            //sdl: None, //Some(sdl)
         })
     }
 
@@ -35,7 +34,6 @@ impl Context {
             i += 1;
             crate::emu::cpu::handle_next_instruction(&mut self.psx);
         }
-        
     }
 }
 

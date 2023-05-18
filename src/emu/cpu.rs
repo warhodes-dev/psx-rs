@@ -57,6 +57,11 @@ impl Cpu {
         }
     }
 
+    /// Enqueue a load to be handled later
+    fn enqueue_load(&mut self, load: PendingLoad) {
+
+    }
+
     fn branch(&mut self, offset: u32) {
         // TODO: Area for improvement. Try figuring out how to remove the sub(4)
         log::trace!("cpu branching to 0x{offset:08x}");
@@ -614,16 +619,27 @@ fn op_andi(psx: &mut Psx, inst: Instruction) {
 fn op_cop0(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec COP0");
     match inst.cop_op() {
-        0x4 => op_mtc0(psx, inst),
+        0x00 => op_mfc0(psx, inst),
+        0x04 => op_mtc0(psx, inst),
         _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{:08x})", inst.inner()),
     }
+}
+
+/// Move from coprocessor 0
+// mfc0 rt,rd
+// rt = cop#_(data_reg)
+fn op_mfc0(psx: &mut Psx, inst: Instruction) {
+    log::trace!("delegate MFC0");
+    let cpu_rt = inst.rt();
+    let cop_r = inst.rd();
+
 }
 
 /// Move to coprocessor 0
 // mtc0 rt,rd
 // cop#_(data_reg) = rt
 fn op_mtc0(psx: &mut Psx, inst: Instruction) { 
-    log::trace!("subexec MTC0");
+    log::trace!("delegate MTC0");
     let cpu_rt = inst.rt();
     let cop_r = inst.rd();
 
