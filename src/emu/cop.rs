@@ -18,7 +18,7 @@ impl Cop0 {
     }
 }
 
-pub fn op_mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
+pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
     log::trace!("cop0 exec MTC0");
     match cop_r.into() {
         3 | 5 | 6 | 7 | 9 | 11 => {
@@ -34,8 +34,18 @@ pub fn op_mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
                 panic!("unhandled write to CAUSE register");
             }
         }
-        _else => panic!("unhandled cop0 register: 0x{_else:08x}"),
+        _else => panic!("unhandled write to cop0 register {_else}"),
     } 
+}
+
+pub fn mfc0(psx: &mut Psx, cop_r: RegisterIndex) -> u32 {
+    log::trace!("cop0 exec MFC0");
+    match cop_r.into() {
+        12 => psx.cop0.sr,
+        13 => panic!("Unhandled read from CAUSE register"),
+        _else => panic!("Unhandled read from cop0 register {_else}")
+    }
+
 }
 
 pub struct ProcessorStatus(u32);

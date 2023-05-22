@@ -14,7 +14,7 @@ pub struct Cpu {
     /// General purpose registers
     regs: [u32; 32],
     delay_queue: VecDeque<Instruction>,
-    pending_load: Option<PendingLoad>,
+    pending_load: Option<LoadDelay>,
 }
 
 impl Cpu {
@@ -44,7 +44,7 @@ impl Cpu {
         self.regs[0] = 0; // Register 0 should stay 0, even if set otherwise
     }
 
-    /// Executes any pending load in the load delay queue
+    /// Handle any pending LoadDelay in the load delay queue
     fn handle_pending_load(&mut self) {
         if let Some(pending_load) = self.pending_load {
             let reg = pending_load.target_reg;
@@ -57,9 +57,18 @@ impl Cpu {
         }
     }
 
-    /// Enqueue a load to be handled later
-    fn enqueue_load(&mut self, load: PendingLoad) {
+    /// Handle a pending LoadDelay, then enqueue new LoadDelay
+    fn chain_pending_load(&mut self, new_load: LoadDelay) {
+        if let Some(already_pending_load) = self.pending_load 
+            && already_pending_load.target_reg != new_load.target_reg 
+        {
+            let val = already_pending_load.val;
+            let reg = already_pending_load.target_reg;
+            self.set_reg(reg, val);
 
+            //TODO: Handle delay cycles... somehow
+        }
+        self.pending_load = Some(new_load);
     }
 
     fn branch(&mut self, offset: u32) {
@@ -100,6 +109,8 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     match inst.opcode() {
         0x04 => op_beq(psx, inst),
         0x05 => op_bne(psx, inst),
+        0x06 => op_blez(psx, inst),
+        0x07 => op_bgtz(psx, inst),
         0x0F => op_lui(psx, inst),
         0x0D => op_ori(psx, inst),
         0x23 => op_lw(psx, inst),
@@ -120,7 +131,9 @@ pub fn handle_next_instruction(psx: &mut Psx) {
                 0x08 => op_jr(psx, inst),
                 0x25 => op_or(psx, inst),
                 0x2B => op_sltu(psx, inst),
+                0x20 => op_add(psx, inst),
                 0x21 => op_addu(psx, inst),
+                0x24 => op_and(psx, inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             }
         }
@@ -137,13 +150,19 @@ fn fetch_instruction(psx: &mut Psx) -> Instruction {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct PendingLoad {
+pub struct LoadDelay {
     target_reg: RegisterIndex,
     val: u32,
     //delay_cycles: u32,
 }
 
-#[derive(Debug, Copy, Clone)]
+impl LoadDelay {
+    fn new(target_reg: RegisterIndex, val: u32) -> Self {
+        Self { target_reg, val }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RegisterIndex(u32);
 
 impl From<RegisterIndex> for u32 {
@@ -228,7 +247,7 @@ impl Instruction {
     }
 }
 
-/* === Primary Opcodes === */
+/* ========= Opcodes ========= */
 
 /// Load upper (immediate)
 // lui rt,imm
@@ -245,39 +264,7 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rt, v);
 }
 
-/// Bitwise OR
-// or rd,rs,rt
-// rd = rs OR rt
-fn op_or(psx: &mut Psx, inst: Instruction) {
-    log::trace!("exec OR");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
 
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-
-    let val = s | t;
-
-    psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Bitwise OR (immediate)
-// ori rs,rt,imm
-// rt = rs | (0x0000..0xffff)
-fn op_ori(psx: &mut Psx, inst: Instruction) {
-    log::trace!("exec ORI");
-    let i = inst.imm();
-    let rt = inst.rt();
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs);
-    let val = s | i;
-
-    psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val);
-}
 
 /// Load word
 // lw rt,imm(rs)
@@ -299,8 +286,8 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
 
     let val = psx.load(addr);
 
-    psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val);
+    let load = LoadDelay::new(rt, val);
+    psx.cpu.chain_pending_load(load);
 }
 
 /// Load halfword
@@ -321,10 +308,11 @@ fn op_lh(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
 
-    let val = psx.load::<u16>(addr);
+    // Cast as i16 to force sign extension
+    let val = psx.load::<u16>(addr) as i16;
 
-    psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val as u32);
+    let load = LoadDelay::new(rt, val as u32);
+    psx.cpu.chain_pending_load(load);
 }
 
 /// Load byte 
@@ -345,10 +333,11 @@ fn op_lb(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs);
     let addr = s.wrapping_add(i);
 
+    // Cast as i8 to force sign extension
     let val = psx.load::<u8>(addr) as i8;
 
-    psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val as u32);
+    let load = LoadDelay::new(rt, val as u32);
+    psx.cpu.chain_pending_load(load);
 }
 
 /// Store word
@@ -436,20 +425,40 @@ fn op_sll(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rd, val);
 }
 
-/// Add Immediate Unsigned
-// addiu rt,rs,imm
-// rt = rs + (-0x8000..+0x7fff)
-fn op_addiu(psx: &mut Psx, inst: Instruction) {
-    log::trace!("exec ADDIU");
-    let i = inst.imm_se();
-    let rt = inst.rt();
+/// Add
+// add rd,rs,rt
+// rd = rs + rt (with overflow trap)
+fn op_add(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ADD");
+    let rd = inst.rd();
     let rs = inst.rs();
+    let rt = inst.rt();
 
     let s = psx.cpu.reg(rs);
-    let val = s.wrapping_add(i);
+    let t = psx.cpu.reg(rt);
+
+    let val = s.checked_add(t)
+        .expect(&format!("ADDI: Overflow ({s} + {t})"));
 
     psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val);
+    psx.cpu.set_reg(rd, val);
+}
+
+/// Add unsigned
+// addu rd,rs,rt
+// rd = rs + rt
+fn op_addu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ADDU");
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+    let val = s.wrapping_add(t);
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, val);
 }
 
 /// Add Immediate
@@ -470,10 +479,24 @@ fn op_addi(psx: &mut Psx, inst: Instruction) {
 
     let s = psx.cpu.reg(rs) as i32;
 
-    let val = match s.checked_add(i) {
-        Some(v) => v as u32,
-        None    => panic!("ADDI: overflow ({} + {})", s, i),
-    };
+    let val = s.checked_add(i)
+        .expect(&format!("ADDI: Overflow ({s} + {i})"));
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rt, val as u32);
+}
+
+/// Add Immediate Unsigned
+// addiu rt,rs,imm
+// rt = rs + (-0x8000..+0x7fff)
+fn op_addiu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ADDIU");
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let val = s.wrapping_add(i);
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
@@ -557,6 +580,40 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
 }
 
+/// Branch if greater than zero
+// bgtz rs,dest
+// if rs > 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+fn op_bgtz(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec BGTZ");
+    let i = inst.imm_se();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+
+    if s > 0 {
+        psx.cpu.branch(i);
+    }
+
+    psx.cpu.handle_pending_load();
+}
+
+/// Branch if less than or equal to zero
+// blez rs,dest
+// if rs <= 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+fn op_blez(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec BGTZ");
+    let i = inst.imm_se();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+
+    if s <= 0 {
+        psx.cpu.branch(i);
+    }
+
+    psx.cpu.handle_pending_load();
+}
+
 /// Set on less than unsigned
 // stlu rd,rs,rt
 // if rs < rt (unsigned comparison) then rd=1 else rd=0
@@ -575,27 +632,61 @@ fn op_sltu(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rd, flag);
 }
 
-/// Add unsigned
-// addu rd,rs,rt
-// rd = rs + rt
-fn op_addu(psx: &mut Psx, inst: Instruction) {
-    log::trace!("exec ADDU");
+
+/// Bitwise OR
+// or rd,rs,rt
+// rd = rs OR rt
+fn op_or(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec OR");
     let rd = inst.rd();
     let rs = inst.rs();
     let rt = inst.rt();
 
     let s = psx.cpu.reg(rs);
     let t = psx.cpu.reg(rt);
-    let d = s.wrapping_add(t);
+
+    let val = s | t;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, val);
+}
+
+/// Bitwise OR (immediate)
+// ori rs,rt,imm
+// rt = rs | (0x0000..0xffff)
+fn op_ori(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec ORI");
+    let i = inst.imm();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let val = s | i;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rt, val);
+}
+
+/// Bitwise AND
+// and rd,rs,rt
+// rd = rs & rt
+fn op_and(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec AND");
+
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+    let d = s & t;
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, d);
 }
 
-
-
-/// Logical AND immediate
-// rt,rs,imm
+/// Bitwise AND immediate
+// andi rt,rs,imm
 // rt = rs & imm
 fn op_andi(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec ANDI");
@@ -633,6 +724,10 @@ fn op_mfc0(psx: &mut Psx, inst: Instruction) {
     let cpu_rt = inst.rt();
     let cop_r = inst.rd();
 
+    let val = cop::mfc0(psx, cop_r);
+
+    let load = LoadDelay::new(cpu_rt, val);
+    psx.cpu.chain_pending_load(load)
 }
 
 /// Move to coprocessor 0
@@ -646,5 +741,5 @@ fn op_mtc0(psx: &mut Psx, inst: Instruction) {
     let val = psx.cpu.reg(cpu_rt);
 
     psx.cpu.handle_pending_load();
-    cop::op_mtc0(psx, cop_r, val);
+    cop::mtc0(psx, cop_r, val);
 }

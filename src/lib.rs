@@ -1,4 +1,4 @@
-#![feature(array_chunks)]
+#![feature(array_chunks, let_chains)]
 
 #[macro_use] extern crate byte_unit;
 

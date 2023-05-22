@@ -32,6 +32,7 @@ const RAM      : Mapping = Mapping::def(0x0000_0000, n_kib_bytes!(2048) as usize
 const BIOS     : Mapping = Mapping::def(0x1fc0_0000, n_kib_bytes!(512) as usize);
 const MEM_CTL  : Mapping = Mapping::def(0x1f80_1000, 36);
 const RAM_CTL  : Mapping = Mapping::def(0x1f80_1060, 4);
+const IRQ_CTL  : Mapping = Mapping::def(0x1f80_1070, 8);
 const CACHE_CTL: Mapping = Mapping::def(0xfffe_0130, 4);
 const SPU      : Mapping = Mapping::def(0x1f80_1c00, 400);
 const EXP1     : Mapping = Mapping::def(0x1f00_0000, n_kib_bytes!(8) as usize);
@@ -44,6 +45,7 @@ pub enum Region {
     Ram(Mapping),
     MemCtl(Mapping),
     RamCtl(Mapping),
+    IrqCtl(Mapping),
     CacheCtl(Mapping),
     Spu(Mapping),
     Exp1(Mapping),
@@ -57,6 +59,7 @@ lazy_static! {
         RAM.range()       => Region::Ram(RAM),
         MEM_CTL.range()   => Region::MemCtl(MEM_CTL),
         RAM_CTL.range()   => Region::RamCtl(RAM_CTL),
+        IRQ_CTL.range()   => Region::IrqCtl(IRQ_CTL),
         CACHE_CTL.range() => Region::CacheCtl(CACHE_CTL),
         SPU.range()       => Region::Spu(SPU),
         EXP1.range()      => Region::Exp1(EXP1),
