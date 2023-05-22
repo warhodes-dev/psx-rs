@@ -121,6 +121,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
         0x03 => op_jal(psx, inst),
         0x10 => op_cop0(psx, inst),
         0x20 => op_lb(psx, inst),
+        0x24 => op_lbu(psx, inst),
         0x28 => op_sb(psx, inst),
         0x29 => op_sh(psx, inst),
         0x0c => op_andi(psx, inst),
@@ -129,6 +130,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
             match inst.funct() { 
                 0x00 => op_sll(psx, inst),
                 0x08 => op_jr(psx, inst),
+                0x09 => op_jalr(psx, inst),
                 0x25 => op_or(psx, inst),
                 0x2B => op_sltu(psx, inst),
                 0x20 => op_add(psx, inst),
@@ -291,7 +293,7 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Load halfword
-// lw rt,imm(rs)
+// lh rt,imm(rs)
 // rt = [imm + rs]
 fn op_lh(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LH");
@@ -316,8 +318,8 @@ fn op_lh(psx: &mut Psx, inst: Instruction) {
 }
 
 /// Load byte 
-// lw rt,imm(rs)
-// rt = [imm + rs]
+// lb rt,imm(rs)
+// rt = [imm + rs] (With sign extension)
 fn op_lb(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LB");
 
@@ -335,6 +337,30 @@ fn op_lb(psx: &mut Psx, inst: Instruction) {
 
     // Cast as i8 to force sign extension
     let val = psx.load::<u8>(addr) as i8;
+
+    let load = LoadDelay::new(rt, val as u32);
+    psx.cpu.chain_pending_load(load);
+}
+
+/// Load byte unsigned
+// lbu rt,imm(rs)
+// rt = [imm + rs]
+fn op_lbu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec LB");
+
+    if psx.cop0.status().is_isolate_cache() {
+        log::warn!("ignoring load while cache is isolated");
+        return;
+    }
+
+    let i = inst.imm_se();
+    let rt = inst.rt();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs);
+    let addr = s.wrapping_add(i);
+
+    let val = psx.load::<u8>(addr);
 
     let load = LoadDelay::new(rt, val as u32);
     psx.cpu.chain_pending_load(load);
@@ -522,9 +548,11 @@ fn op_jal(psx: &mut Psx, inst: Instruction) {
     let addr = inst.addr();
     let ra = RegisterIndex(31);
 
-    psx.cpu.set_reg(ra, psx.cpu.pc);
+    let return_addr = psx.cpu.pc;
+    psx.cpu.set_reg(ra, return_addr);
 
-    psx.cpu.pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
+    let region_mask = return_addr & 0xf000_0000;
+    psx.cpu.pc = region_mask | (addr << 2);
 
     psx.cpu.handle_pending_load();
 }
@@ -540,6 +568,24 @@ fn op_jr(psx: &mut Psx, inst: Instruction) {
     psx.cpu.pc = addr;
 
     psx.cpu.handle_pending_load();
+}
+
+/// Jump to register and link
+// (rd,)rs(,rd)
+fn op_jalr(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec JALR");
+    let rs = inst.rs();
+    let rd = inst.rd();
+
+    let return_addr = psx.cpu.pc;
+    let jump_addr = psx.cpu.reg(rs);
+
+    psx.cpu.set_reg(rd, return_addr);
+
+    psx.cpu.pc = jump_addr;
+
+    psx.cpu.handle_pending_load();
+
 }
 
 /// Branch if equal
