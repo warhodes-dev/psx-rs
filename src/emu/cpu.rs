@@ -107,6 +107,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
 
     // Primary opcode
     match inst.opcode() {
+        0x01 => op_bcondz(psx, inst),
         0x04 => op_beq(psx, inst),
         0x05 => op_bne(psx, inst),
         0x06 => op_blez(psx, inst),
@@ -167,6 +168,10 @@ impl LoadDelay {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RegisterIndex(u32);
 
+impl RegisterIndex {
+    const RETURN: RegisterIndex = RegisterIndex(31);
+}
+
 impl From<RegisterIndex> for u32 {
     fn from(r: RegisterIndex) -> Self {
         r.0
@@ -177,7 +182,6 @@ impl From<RegisterIndex> for u32 {
 pub struct Instruction(u32);
 
 impl Instruction {
-
     /// Return bits [31:26] of instruction
     fn opcode(self) -> u32 {
         let Instruction(op) = self;
@@ -279,12 +283,13 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
         return;
     }
 
-    let i = inst.imm_se();
+    let base = inst.imm_se();
+
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = base.wrapping_add(offset);
 
     let val = psx.load(addr);
 
@@ -303,12 +308,13 @@ fn op_lh(psx: &mut Psx, inst: Instruction) {
         return;
     }
 
-    let i = inst.imm_se();
+    let base = inst.imm_se();
+
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = base.wrapping_add(offset);
 
     // Cast as i16 to force sign extension
     let val = psx.load::<u16>(addr) as i16;
@@ -328,12 +334,13 @@ fn op_lb(psx: &mut Psx, inst: Instruction) {
         return;
     }
 
-    let i = inst.imm_se();
+    let base = inst.imm_se();
+
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = base.wrapping_add(offset);
 
     // Cast as i8 to force sign extension
     let val = psx.load::<u8>(addr) as i8;
@@ -353,12 +360,13 @@ fn op_lbu(psx: &mut Psx, inst: Instruction) {
         return;
     }
 
-    let i = inst.imm_se();
+    let base = inst.imm_se();
+
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = base.wrapping_add(offset);
 
     let val = psx.load::<u8>(addr);
 
@@ -487,7 +495,7 @@ fn op_addu(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rd, val);
 }
 
-/// Add Immediate
+/// Add immediate
 // addi rt,rs,imm
 // rt = rs + (-0x8000..+0x7fff) (with overflow trap)
 //
@@ -512,7 +520,7 @@ fn op_addi(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rt, val as u32);
 }
 
-/// Add Immediate Unsigned
+/// Add immediate unsigned
 // addiu rt,rs,imm
 // rt = rs + (-0x8000..+0x7fff)
 fn op_addiu(psx: &mut Psx, inst: Instruction) {
@@ -546,10 +554,9 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
 fn op_jal(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec JAL");
     let addr = inst.addr();
-    let ra = RegisterIndex(31);
 
     let return_addr = psx.cpu.pc;
-    psx.cpu.set_reg(ra, return_addr);
+    psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
 
     let region_mask = return_addr & 0xf000_0000;
     psx.cpu.pc = region_mask | (addr << 2);
@@ -557,7 +564,7 @@ fn op_jal(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
 }
 
-/// Jump register
+/// Jump to register
 // jr rs
 // pc = rs
 fn op_jr(psx: &mut Psx, inst: Instruction) {
@@ -626,6 +633,34 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
 }
 
+/// Branch (condition) zero
+/// This opcode can be bltz, bgez, bltzal, or bgezal
+fn op_bcondz(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec BcondZ");
+
+    let i = inst.imm_se();
+    let rs = inst.rs();
+
+    let s = psx.cpu.reg(rs) as i32;
+
+    let discriminant = (inst.inner() >> 16) & 0x1f;
+    let is_bltz = discriminant & 0x01 == 0;
+    let is_bgez = discriminant & 0x01 == 1;
+    let should_link = discriminant & 0x1e == 0x80;
+
+    if should_link {
+        let return_addr = psx.cpu.pc;
+        psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
+    }
+
+    if is_bltz && s < 0   
+    || is_bgez && s >= 0 {
+        psx.cpu.branch(i);
+    }
+
+    psx.cpu.handle_pending_load();
+}
+
 /// Branch if greater than zero
 // bgtz rs,dest
 // if rs > 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
@@ -634,7 +669,7 @@ fn op_bgtz(psx: &mut Psx, inst: Instruction) {
     let i = inst.imm_se();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
+    let s = psx.cpu.reg(rs) as i32;
 
     if s > 0 {
         psx.cpu.branch(i);
@@ -651,7 +686,7 @@ fn op_blez(psx: &mut Psx, inst: Instruction) {
     let i = inst.imm_se();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
+    let s = psx.cpu.reg(rs) as i32;
 
     if s <= 0 {
         psx.cpu.branch(i);
