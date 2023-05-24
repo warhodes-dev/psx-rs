@@ -7,13 +7,16 @@ use crate::emu::{
 
 use super::Psx;
 
+/// The emulated CPU state
 #[derive(Debug)]
 pub struct Cpu {
     /// Program counter register
     pc: u32,
     /// General purpose registers
     regs: [u32; 32],
+    /// Contains queue of instructions to be executed, once per emulation cycle
     delay_queue: VecDeque<Instruction>,
+    /// Could contain a pending load that has not been consumed yet 
     pending_load: Option<LoadDelay>,
 }
 
@@ -95,7 +98,7 @@ impl Cpu {
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
-    
+
     // Prepare *next* (not current) instruction
     let next_inst = fetch_instruction(psx);
     psx.cpu.delay_queue.push_front(next_inst);
@@ -105,43 +108,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     let inst = psx.cpu.delay_queue.pop_back()
         .expect("delay queue empty. cannot fetch instruction");
 
-    // Primary opcode
-    match inst.opcode() {
-        0x01 => op_bcondz(psx, inst),
-        0x04 => op_beq(psx, inst),
-        0x05 => op_bne(psx, inst),
-        0x06 => op_blez(psx, inst),
-        0x07 => op_bgtz(psx, inst),
-        0x0F => op_lui(psx, inst),
-        0x0D => op_ori(psx, inst),
-        0x23 => op_lw(psx, inst),
-        0x2B => op_sw(psx, inst),
-        0x08 => op_addi(psx, inst),
-        0x09 => op_addiu(psx, inst),
-        0x02 => op_j(psx, inst),
-        0x03 => op_jal(psx, inst),
-        0x10 => op_cop0(psx, inst),
-        0x20 => op_lb(psx, inst),
-        0x24 => op_lbu(psx, inst),
-        0x28 => op_sb(psx, inst),
-        0x29 => op_sh(psx, inst),
-        0x0c => op_andi(psx, inst),
-        0x00 => {
-            // Secondary opcode
-            match inst.funct() { 
-                0x00 => op_sll(psx, inst),
-                0x08 => op_jr(psx, inst),
-                0x09 => op_jalr(psx, inst),
-                0x25 => op_or(psx, inst),
-                0x2B => op_sltu(psx, inst),
-                0x20 => op_add(psx, inst),
-                0x21 => op_addu(psx, inst),
-                0x24 => op_and(psx, inst),
-                _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
-            }
-        }
-        _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
-    }
+    dispatch_instruction(psx, inst);
 }
 
 fn fetch_instruction(psx: &mut Psx) -> Instruction {
@@ -151,6 +118,51 @@ fn fetch_instruction(psx: &mut Psx) -> Instruction {
     log::trace!("fetched instruction: 0x{inst_raw:08x}"); 
     inst
 }
+
+pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
+
+    // Primary opcode
+    match inst.opcode() {
+        0x01 => op_bcondz(psx, inst),
+        0x02 => op_j(psx, inst),
+        0x03 => op_jal(psx, inst),
+        0x04 => op_beq(psx, inst),
+        0x05 => op_bne(psx, inst),
+        0x06 => op_blez(psx, inst),
+        0x07 => op_bgtz(psx, inst),
+        0x08 => op_addi(psx, inst),
+        0x09 => op_addiu(psx, inst),
+        0x0A => op_slti(psx, inst),
+        0x0B => op_sltiu(psx, inst),
+        0x0C => op_andi(psx, inst),
+        0x0D => op_ori(psx, inst),
+        0x0F => op_lui(psx, inst),
+        0x10 => op_cop0(psx, inst),
+        0x20 => op_lb(psx, inst),
+        0x23 => op_lw(psx, inst),
+        0x24 => op_lbu(psx, inst),
+        0x28 => op_sb(psx, inst),
+        0x29 => op_sh(psx, inst),
+        0x2B => op_sw(psx, inst),
+
+        // Secondary Opcodes
+        0x00 => match inst.funct() { 
+            0x00 => op_sll(psx, inst),
+            0x08 => op_jr(psx, inst),
+            0x09 => op_jalr(psx, inst),
+            0x20 => op_add(psx, inst),
+            0x21 => op_addu(psx, inst),
+            0x24 => op_and(psx, inst),
+            0x25 => op_or(psx, inst),
+            0x2A => op_slt(psx, inst),
+            0x2B => op_sltu(psx, inst),
+            _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
+        },
+        _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
+    }
+}
+
+
 
 #[derive(Debug, Copy, Clone)]
 pub struct LoadDelay {
@@ -472,7 +484,7 @@ fn op_add(psx: &mut Psx, inst: Instruction) {
     let t = psx.cpu.reg(rt);
 
     let val = s.checked_add(t)
-        .expect(&format!("ADDI: Overflow ({s} + {t})"));
+        .expect(&format!("ADD: Overflow ({s} + {t})"));
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, val);
@@ -535,6 +547,44 @@ fn op_addiu(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
 }
+
+/// Sub
+// sub rd,rs,rt
+// rd = rs + rt (with overflow trap)
+fn op_sub(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SUB");
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+
+    let val = s.checked_sub(t)
+        .expect(&format!("SUB: Overflow ({s} + {t})"));
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, val);
+}
+
+/// Sub unsigned
+// subu rd,rs,rt
+// rd = rs + rt
+fn op_subu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SUBU");
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let t = psx.cpu.reg(rt);
+    let val = s.wrapping_sub(t);
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, val);
+}
+
+
 
 /// Jump
 // j addr
@@ -695,7 +745,25 @@ fn op_blez(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
 }
 
-/// Set on less than unsigned
+/// Set on less than
+// stlu rd,rs,rt
+// if rs < rt (signed comparison) then rd=1 else rd=0
+fn op_slt(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SLT");
+    let rd = inst.rd();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs) as i32;
+    let t = psx.cpu.reg(rt) as i32;
+    let flag = (s < t) as u32;
+
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, flag);
+}
+
+/// Set on less than, unsigned
 // stlu rd,rs,rt
 // if rs < rt (unsigned comparison) then rd=1 else rd=0
 fn op_sltu(psx: &mut Psx, inst: Instruction) {
@@ -711,6 +779,38 @@ fn op_sltu(psx: &mut Psx, inst: Instruction) {
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, flag);
+}
+
+/// Set on less than immediate
+// slti rt,rs,imm
+// if rs < imm (sign-extended immediate) (signed comparison) then rt=1, else rt=0
+fn op_slti(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SLTI");
+    let i = inst.imm_se() as i32;
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs) as i32;
+    let flag = (s < i) as u32;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rt, flag);
+}
+
+/// Set on less than immediate, unsigned
+// sltiu rt,rs,imm
+// if rs < imm (sign-extended immediate) (unsigned comparison) then rt=1, else rt=0
+fn op_sltiu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SLTIU");
+    let i = inst.imm_se();
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs);
+    let flag = (s < i) as u32;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rt, flag);
 }
 
 
