@@ -91,10 +91,6 @@ impl Cpu {
     fn inc_pc(&mut self) {
         self.pc = self.pc.wrapping_add(4);
     }
-
-    fn dec_pc(&mut self) {
-        self.pc = self.pc.wrapping_sub(4);
-    }
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
@@ -102,11 +98,12 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     // Prepare *next* (not current) instruction
     let next_inst = fetch_instruction(psx);
     psx.cpu.delay_queue.push_front(next_inst);
-    psx.cpu.pc = psx.cpu.pc.wrapping_add(4);
 
     // Get current instruction
     let inst = psx.cpu.delay_queue.pop_back()
         .expect("delay queue empty. cannot fetch instruction");
+
+    psx.cpu.inc_pc();
 
     dispatch_instruction(psx, inst);
 }
@@ -148,10 +145,12 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
         // Secondary Opcodes
         0x00 => match inst.funct() { 
             0x00 => op_sll(psx, inst),
+            0x03 => op_sra(psx, inst),
             0x08 => op_jr(psx, inst),
             0x09 => op_jalr(psx, inst),
             0x20 => op_add(psx, inst),
             0x21 => op_addu(psx, inst),
+            0x23 => op_subu(psx, inst),
             0x24 => op_and(psx, inst),
             0x25 => op_or(psx, inst),
             0x2A => op_slt(psx, inst),
@@ -471,6 +470,22 @@ fn op_sll(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rd, val);
 }
 
+/// Shift right arithmetic
+// sra rd,rt,imm
+// rd = rt >> (0x00..0x1f)
+fn op_sra(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SRA");
+    let i = inst.shamt();
+    let rt = inst.rt();
+    let rd = inst.rd();
+
+    let t = psx.cpu.reg(rt) as i32;
+    let val = (t >> i) as u32;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, val);
+}
+
 /// Add
 // add rd,rs,rt
 // rd = rs + rt (with overflow trap)
@@ -584,7 +599,12 @@ fn op_subu(psx: &mut Psx, inst: Instruction) {
     psx.cpu.set_reg(rd, val);
 }
 
-
+/// Divide
+// div rs,rt
+// lo = rs / rt, hi = rs % rt
+fn op_div(psx: &mut Psx, inst: Instruction) {
+    unimplemented!()
+}
 
 /// Jump
 // j addr
