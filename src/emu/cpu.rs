@@ -14,6 +14,11 @@ pub struct Cpu {
     pc: u32,
     /// General purpose registers
     regs: [u32; 32],
+    /// Quotient and Remainder registers for DIV instructions
+    /// Quotient register
+    lo: u32,
+    /// Remainder register
+    hi: u32,
     /// Contains queue of instructions to be executed, once per emulation cycle
     delay_queue: VecDeque<Instruction>,
     /// Could contain a pending load that has not been consumed yet 
@@ -31,6 +36,8 @@ impl Cpu {
         Cpu {
             pc: BIOS_START,
             regs,
+            lo: 0xcafe,
+            hi: 0xb0ba,
             delay_queue,
             pending_load: None,
         }
@@ -88,22 +95,21 @@ impl Cpu {
         self.pc = pc;
     }
 
-    fn inc_pc(&mut self) {
+    fn increment_pc(&mut self) {
         self.pc = self.pc.wrapping_add(4);
     }
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
-
     // Prepare *next* (not current) instruction
     let next_inst = fetch_instruction(psx);
     psx.cpu.delay_queue.push_front(next_inst);
 
     // Get current instruction
     let inst = psx.cpu.delay_queue.pop_back()
-        .expect("delay queue empty. cannot fetch instruction");
+        .expect("delay queue exhausted");
 
-    psx.cpu.inc_pc();
+    psx.cpu.increment_pc();
 
     dispatch_instruction(psx, inst);
 }
@@ -117,7 +123,6 @@ fn fetch_instruction(psx: &mut Psx) -> Instruction {
 }
 
 pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
-
     // Primary opcode
     match inst.opcode() {
         0x01 => op_bcondz(psx, inst),
@@ -603,7 +608,33 @@ fn op_subu(psx: &mut Psx, inst: Instruction) {
 // div rs,rt
 // lo = rs / rt, hi = rs % rt
 fn op_div(psx: &mut Psx, inst: Instruction) {
-    unimplemented!()
+    log::trace!("exec DIV");
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let s = psx.cpu.reg(rs) as i32;
+    let t = psx.cpu.reg(rt) as i32;
+
+    // Special case guards
+    if t == 0 { 
+        if s >= 0 {
+            psx.cpu.lo = -1i32 as u32;
+        } else {
+            psx.cpu.lo = 1; 
+        };
+        psx.cpu.hi = s as u32;
+    } else if t == (i32::MAX + 1) && s == -1 { //0xffff_ffff
+        psx.cpu.lo = 0x8000_0000;
+        psx.cpu.hi = 0;
+    } 
+    
+    // Ordinary case
+    else {
+        psx.cpu.lo = (s / t) as u32;
+        psx.cpu.hi = (s % t) as u32;
+    }
+
+    psx.cpu.handle_pending_load();
 }
 
 /// Jump

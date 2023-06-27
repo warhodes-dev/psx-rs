@@ -109,7 +109,7 @@ impl Psx {
                 log::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::RamCtl(_mapping) => {
-                log::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
+                log::warn!("wrote to ramctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::IrqCtl(_mapping) => {
                 log::warn!("wrote to irqctrl region (0x{addr:08x}), but this is unimplemented");

@@ -7,5 +7,6 @@
     "rust-analyzer.inlayHints.lifetimeElisionHints.enable": "skip_trivial",
     "rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames": false,
     "rust-analyzer.semanticHighlighting.operator.specialization.enable": false,
-    "rust-analyzer.typing.continueCommentsOnNewline": false
+    "rust-analyzer.typing.continueCommentsOnNewline": false,
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

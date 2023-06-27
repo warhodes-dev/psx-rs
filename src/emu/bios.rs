@@ -12,8 +12,6 @@ pub struct Bios {
 
 impl Bios {
     pub fn new(buf: &[u8; BIOS_SIZE])-> Self {
-
-        /* Nightly Only */
         let mem = buf.array_chunks::<4>()
             .map(|chunk| u32::from_ne_bytes(*chunk))
             .collect::<Vec<u32>>();
