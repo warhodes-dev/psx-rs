@@ -280,10 +280,10 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt(); // TODO: Pipelining
 
     // Low 16 bits are set to 0
-    let v = i << 16;
+    let val = i << 16;
 
     psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, v);
+    psx.cpu.set_reg(rt, val);
 }
 
 
@@ -405,8 +405,8 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = offset.wrapping_add(i);
     let val = psx.cpu.reg(rt);
 
     psx.cpu.handle_pending_load();
@@ -428,8 +428,8 @@ fn op_sh(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = offset.wrapping_add(i);
     let val = psx.cpu.reg(rt) as u16;
 
     psx.cpu.handle_pending_load();
@@ -451,8 +451,8 @@ fn op_sb(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = offset.wrapping_add(i);
     let val = psx.cpu.reg(rt) as u8;
 
     psx.cpu.handle_pending_load();
@@ -612,26 +612,26 @@ fn op_div(psx: &mut Psx, inst: Instruction) {
     let rs = inst.rs();
     let rt = inst.rt();
 
-    let s = psx.cpu.reg(rs) as i32;
-    let t = psx.cpu.reg(rt) as i32;
+    let numerator = psx.cpu.reg(rs) as i32;
+    let denominator = psx.cpu.reg(rt) as i32;
 
     // Special case guards
-    if t == 0 { 
-        if s >= 0 {
+    if denominator == 0 { 
+        if numerator>= 0 {
             psx.cpu.lo = -1i32 as u32;
         } else {
             psx.cpu.lo = 1; 
         };
-        psx.cpu.hi = s as u32;
-    } else if t == (i32::MAX + 1) && s == -1 { //0xffff_ffff
+        psx.cpu.hi = numerator as u32;
+    } else if denominator == (i32::MAX + 1) && numerator == -1 { //0xffff_ffff
         psx.cpu.lo = 0x8000_0000;
         psx.cpu.hi = 0;
     } 
     
     // Ordinary case
     else {
-        psx.cpu.lo = (s / t) as u32;
-        psx.cpu.hi = (s % t) as u32;
+        psx.cpu.lo = (numerator / denominator) as u32;
+        psx.cpu.hi = (numerator % denominator) as u32;
     }
 
     psx.cpu.handle_pending_load();
