@@ -612,26 +612,26 @@ fn op_div(psx: &mut Psx, inst: Instruction) {
     let rs = inst.rs();
     let rt = inst.rt();
 
-    let s = psx.cpu.reg(rs) as i32;
-    let t = psx.cpu.reg(rt) as i32;
+    let num = psx.cpu.reg(rs) as i32;
+    let denom = psx.cpu.reg(rt) as i32;
 
-    // Special case guards
-    if t == 0 { 
-        if s >= 0 {
+    match (num, denom) {
+        (n, 0) if n >= 0 => { // Special case: Divide by zero (positive)
             psx.cpu.lo = -1i32 as u32;
-        } else {
-            psx.cpu.lo = 1; 
-        };
-        psx.cpu.hi = s as u32;
-    } else if t == (i32::MAX + 1) && s == -1 { //0xffff_ffff
-        psx.cpu.lo = 0x8000_0000;
-        psx.cpu.hi = 0;
-    } 
-    
-    // Ordinary case
-    else {
-        psx.cpu.lo = (s / t) as u32;
-        psx.cpu.hi = (s % t) as u32;
+            psx.cpu.hi = n as u32;
+        },
+        (n, 0) if n < 0 => { // Special case: Divide by zero (negative)
+            psx.cpu.lo = 1 as u32;
+            psx.cpu.hi = n as u32;
+        },
+        (i32::MIN, -1) => { // Special case: i32::MIN / -1 cannot fit in i32. 
+            psx.cpu.lo = i32::MIN as u32;
+            psx.cpu.hi = 0;
+        },
+        (n, d) => {
+            psx.cpu.lo = (n / d) as u32;
+            psx.cpu.hi = (n % d) as u32;
+        },
     }
 
     psx.cpu.handle_pending_load();
