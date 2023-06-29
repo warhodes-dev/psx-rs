@@ -52,7 +52,7 @@ impl Psx {
             map::Region::Ram(mapping) => {
                 let offset = paddr - mapping.base;
                 return self.ram.load::<T>(offset);
-            }
+            },
             map::Region::MemCtl(_mapping) => {
                 log::warn!("read from memctrl region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
@@ -63,6 +63,10 @@ impl Psx {
             },
             map::Region::IrqCtl(_mapping) => {
                 log::warn!("read from irqctrl region (0x{addr:08x}), but this is unimplemented");
+                return T::from_u32(0);
+            },
+            map::Region::Timer(_mapping) => {
+                log::warn!("read from timer region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::CacheCtl(_mapping) => {
@@ -104,7 +108,7 @@ impl Psx {
             map::Region::Ram(mapping) => {
                 let offset = paddr - mapping.base;
                 self.ram.store::<T>(offset, val);
-            }
+            },
             map::Region::MemCtl(_mapping) => {
                 log::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
             },
@@ -113,6 +117,9 @@ impl Psx {
             },
             map::Region::IrqCtl(_mapping) => {
                 log::warn!("wrote to irqctrl region (0x{addr:08x}), but this is unimplemented");
+            },
+            map::Region::Timer(_mapping) => {
+                log::warn!("wrote to timer region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::CacheCtl(_mapping) => {
                 log::warn!("wrote to cachectrl region (0x{addr:08x}), but this is unsupported");

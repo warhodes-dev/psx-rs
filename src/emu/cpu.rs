@@ -36,8 +36,8 @@ impl Cpu {
         Cpu {
             pc: BIOS_START,
             regs,
-            lo: 0xcafe,
-            hi: 0xb0ba,
+            lo: 0xb0ba,
+            hi: 0xcafe,
             delay_queue,
             pending_load: None,
         }
@@ -150,9 +150,14 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
         // Secondary Opcodes
         0x00 => match inst.funct() { 
             0x00 => op_sll(psx, inst),
+            0x02 => op_srl(psx, inst),
             0x03 => op_sra(psx, inst),
             0x08 => op_jr(psx, inst),
             0x09 => op_jalr(psx, inst),
+            0x1a => op_div(psx, inst),
+            0x1b => op_divu(psx, inst),
+            0x10 => op_mfhi(psx, inst),
+            0x12 => op_mflo(psx, inst),
             0x20 => op_add(psx, inst),
             0x21 => op_addu(psx, inst),
             0x23 => op_subu(psx, inst),
@@ -280,10 +285,10 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt(); // TODO: Pipelining
 
     // Low 16 bits are set to 0
-    let v = i << 16;
+    let val = i << 16;
 
     psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, v);
+    psx.cpu.set_reg(rt, val);
 }
 
 
@@ -405,8 +410,8 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = offset.wrapping_add(i);
     let val = psx.cpu.reg(rt);
 
     psx.cpu.handle_pending_load();
@@ -428,8 +433,8 @@ fn op_sh(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = offset.wrapping_add(i);
     let val = psx.cpu.reg(rt) as u16;
 
     psx.cpu.handle_pending_load();
@@ -451,8 +456,8 @@ fn op_sb(psx: &mut Psx, inst: Instruction) {
     let rt = inst.rt();
     let rs = inst.rs();
 
-    let s = psx.cpu.reg(rs);
-    let addr = s.wrapping_add(i);
+    let offset = psx.cpu.reg(rs);
+    let addr = offset.wrapping_add(i);
     let val = psx.cpu.reg(rt) as u8;
 
     psx.cpu.handle_pending_load();
@@ -470,6 +475,22 @@ fn op_sll(psx: &mut Psx, inst: Instruction) {
 
     let t = psx.cpu.reg(rt);
     let val = t << i;
+
+    psx.cpu.handle_pending_load();
+    psx.cpu.set_reg(rd, val);
+}
+
+/// Shift right logical
+// sll rd,rt,imm
+// rd = rt >> (0x00..0x1f)
+fn op_srl(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec SLL");
+    let i = inst.shamt();
+    let rt = inst.rt();
+    let rd = inst.rd();
+
+    let t = psx.cpu.reg(rt);
+    let val = t >> i;
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rd, val);
@@ -635,6 +656,65 @@ fn op_div(psx: &mut Psx, inst: Instruction) {
     }
 
     psx.cpu.handle_pending_load();
+
+    //TODO: Implement stalling
+}
+
+/// Divide unsigned
+// divu rs,rt
+// lo = rs / rt, hi = rs % rt
+fn op_divu(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec DIV");
+    let rs = inst.rs();
+    let rt = inst.rt();
+
+    let num = psx.cpu.reg(rs);
+    let denom = psx.cpu.reg(rt);
+
+    match (num, denom) {
+        (n, 0) => { // Special case: Divide by zero
+            psx.cpu.lo = -1i32 as u32;
+            psx.cpu.hi = n;
+        },
+        (n, d) => {
+            psx.cpu.lo = n / d;
+            psx.cpu.hi = n % d;
+        },
+    }
+
+    psx.cpu.handle_pending_load();
+
+    //TODO: Implement stalling
+}
+
+/// Move from LO
+// mflo rd
+// rd = lo
+fn op_mflo(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec MFLO");
+    let rd = inst.rd();
+    let lo = psx.cpu.lo;
+
+    psx.cpu.set_reg(rd, lo);
+
+    psx.cpu.handle_pending_load();
+
+    //TODO: Implement stalling
+}
+
+/// Move from HI
+// mfhi rd
+// rd = lo
+fn op_mfhi(psx: &mut Psx, inst: Instruction) {
+    log::trace!("exec MFLO");
+    let rd = inst.rd();
+    let hi = psx.cpu.hi;
+
+    psx.cpu.set_reg(rd, hi);
+
+    psx.cpu.handle_pending_load();
+
+    //TODO: Implement stalling
 }
 
 /// Jump
