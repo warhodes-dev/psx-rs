@@ -18,6 +18,7 @@ pub struct Psx {
     cpu: Cpu,
     cop0: Cop0,
     ram: Ram,
+    pub instruction_cnt: u64,
 }
 
 impl Psx {
@@ -27,6 +28,7 @@ impl Psx {
             cpu: Cpu::new(),
             cop0: Cop0::new(),
             ram: Ram::new(),
+            instruction_cnt: 0,
         }
     }
 

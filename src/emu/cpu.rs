@@ -12,6 +12,8 @@ use super::Psx;
 pub struct Cpu {
     /// Program counter register
     pc: u32,
+    /// Next program counter, represents branch delay slot
+    next_pc: u32,
     /// General purpose registers
     regs: [u32; 32],
     /// Quotient and Remainder registers for DIV instructions
@@ -33,8 +35,11 @@ impl Cpu {
         // Delay queue begins with 1 NOOP
         let delay_queue = VecDeque::from([Instruction(0)]);
 
+        let pc = BIOS_START;
+
         Cpu {
-            pc: BIOS_START,
+            pc,
+            next_pc: pc.wrapping_add(4),
             regs,
             lo: 0xb0ba,
             hi: 0xcafe,
@@ -87,12 +92,8 @@ impl Cpu {
 
         // PC must be aligned on 32 bits
         let offset = offset << 2;
-        let mut pc = self.pc;
 
-        // Compensate for hardcoded +4 in handle_instruction
-        pc = pc.wrapping_add(offset).wrapping_sub(4);
-
-        self.pc = pc;
+        self.next_pc = self.pc.wrapping_add(offset);
     }
 
     fn increment_pc(&mut self) {
@@ -101,24 +102,33 @@ impl Cpu {
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
-    // Prepare *next* (not current) instruction
-    let next_inst = fetch_instruction(psx);
-    psx.cpu.delay_queue.push_front(next_inst);
+    /* Old */
+    //let next_inst = _fetch_instruction(psx);
+    //psx.cpu.delay_queue.push_front(next_inst);
 
+    /* New */
+    let inst_addr = psx.cpu.pc;
+    let inst = Instruction(psx.load(inst_addr));
+    log::trace!("fetched instruction: 0x{:08x} @ 0x{:08x}", inst.inner(), inst_addr); 
+
+    psx.cpu.pc = psx.cpu.next_pc;
+    psx.cpu.next_pc = psx.cpu.next_pc.wrapping_add(4);
+
+    //IDEA: Handle pending loads here? Maybe
+
+    /* Old */
     // Get current instruction
-    let inst = psx.cpu.delay_queue.pop_back()
-        .expect("delay queue exhausted");
-
-    psx.cpu.increment_pc();
+    //let inst = psx.cpu.delay_queue.pop_back()
+        //.expect("delay queue exhausted");
+    //psx.cpu.increment_pc();
 
     dispatch_instruction(psx, inst);
 }
 
-fn fetch_instruction(psx: &mut Psx) -> Instruction {
+fn _fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
-    let inst_raw = psx.load(addr);
-    let inst = Instruction(inst_raw);
-    log::trace!("fetched instruction: 0x{inst_raw:08x}"); 
+    let inst = Instruction(psx.load(addr));
+    log::trace!("fetched instruction: 0x{:08x}", inst.inner()); 
     inst
 }
 
@@ -165,9 +175,9 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
             0x25 => op_or(psx, inst),
             0x2A => op_slt(psx, inst),
             0x2B => op_sltu(psx, inst),
-            _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
+            _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})\nInstructions processed: {}", inst.0, psx.instruction_cnt),
         },
-        _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
+        _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})\nInstructions processed: {}", inst.0, psx.instruction_cnt),
     }
 }
 
@@ -724,7 +734,7 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec J");
     let addr = inst.addr();
 
-    psx.cpu.pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
+    psx.cpu.next_pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
 
     psx.cpu.handle_pending_load();
 }
@@ -736,13 +746,12 @@ fn op_jal(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec JAL");
     let addr = inst.addr();
 
-    let return_addr = psx.cpu.pc;
-    psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
-
-    let region_mask = return_addr & 0xf000_0000;
-    psx.cpu.pc = region_mask | (addr << 2);
+    let return_addr = psx.cpu.next_pc;
+    psx.cpu.next_pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
 
     psx.cpu.handle_pending_load();
+
+    psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
 }
 
 /// Jump to register
@@ -753,7 +762,7 @@ fn op_jr(psx: &mut Psx, inst: Instruction) {
     let rs = inst.rs();
     let addr = psx.cpu.reg(rs);
 
-    psx.cpu.pc = addr;
+    psx.cpu.next_pc = addr;
 
     psx.cpu.handle_pending_load();
 }
@@ -765,15 +774,14 @@ fn op_jalr(psx: &mut Psx, inst: Instruction) {
     let rs = inst.rs();
     let rd = inst.rd();
 
-    let return_addr = psx.cpu.pc;
+    let return_addr = psx.cpu.next_pc;
     let jump_addr = psx.cpu.reg(rs);
 
-    psx.cpu.set_reg(rd, return_addr);
-
-    psx.cpu.pc = jump_addr;
+    psx.cpu.next_pc = jump_addr; 
 
     psx.cpu.handle_pending_load();
 
+    psx.cpu.set_reg(rd, return_addr);
 }
 
 /// Branch if equal
