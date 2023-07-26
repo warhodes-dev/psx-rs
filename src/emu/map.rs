@@ -27,17 +27,18 @@ const REGION_MASK: [u32; 8] = [
 //
 //            KSEG2
 //            0xfffe_0000
-
-const RAM      : Mapping = Mapping::def(0x0000_0000, n_kib_bytes!(2048) as usize);
-const BIOS     : Mapping = Mapping::def(0x1fc0_0000, n_kib_bytes!(512) as usize);
-const MEM_CTL  : Mapping = Mapping::def(0x1f80_1000, 36);
-const RAM_CTL  : Mapping = Mapping::def(0x1f80_1060, 4);
-const IRQ_CTL  : Mapping = Mapping::def(0x1f80_1070, 8);
-const TIMER    : Mapping = Mapping::def(0x1f80_1100, 48);
-const CACHE_CTL: Mapping = Mapping::def(0xfffe_0130, 4);
-const SPU      : Mapping = Mapping::def(0x1f80_1c00, 400);
-const EXP1     : Mapping = Mapping::def(0x1f00_0000, n_kib_bytes!(8) as usize);
-const EXP2     : Mapping = Mapping::def(0x1f80_2000, n_kib_bytes!(8) as usize);
+//                                      Base addr    Size in bytes
+//                                      -----------  -------------------------
+const RAM      : Mapping = Mapping::new(0x0000_0000, n_mib_bytes!(2) as u32);
+const BIOS     : Mapping = Mapping::new(0x1fc0_0000, n_kib_bytes!(512) as u32);
+const MEM_CTL  : Mapping = Mapping::new(0x1f80_1000, 36);
+const RAM_CTL  : Mapping = Mapping::new(0x1f80_1060, 4);
+const IRQ_CTL  : Mapping = Mapping::new(0x1f80_1070, 8);
+const TIMER    : Mapping = Mapping::new(0x1f80_1100, 48);
+const CACHE_CTL: Mapping = Mapping::new(0xfffe_0130, 4);
+const SPU      : Mapping = Mapping::new(0x1f80_1c00, 400);
+const EXP1     : Mapping = Mapping::new(0x1f00_0000, n_kib_bytes!(8) as u32);
+const EXP2     : Mapping = Mapping::new(0x1f80_2000, n_kib_bytes!(8) as u32);
 
 /// Contains the base address of the associated region
 #[derive(Copy, Clone)]
@@ -73,16 +74,19 @@ lazy_static! {
 #[derive(Debug, Copy, Clone)]
 pub struct Mapping {
     pub base: u32,
-    pub size: usize,
+    pub size: u32,
 }
 
 impl Mapping {
-    const fn def(base: u32, size: usize) -> Self {
-        Mapping { base, size }
+    const fn new(base: u32, size: u32) -> Self {
+        Mapping { 
+            base, 
+            size,
+        }
     }
 
     const fn range(&self) -> Range<u32> {
-        self.base..(self.base + self.size as u32)
+        self.base..(self.base + self.size)
     }
 }
 
