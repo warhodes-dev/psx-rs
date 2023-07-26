@@ -1,7 +1,8 @@
-#![allow(unused_imports)]
 
 use std::path::Path;
 use anyhow::Result;
+
+#[allow(unused_imports)]
 use psx_rs::{
     Context,
     emu::{

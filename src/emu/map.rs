@@ -70,8 +70,6 @@ lazy_static! {
     };
 }
 
-
-
 #[derive(Debug, Copy, Clone)]
 pub struct Mapping {
     pub base: u32,

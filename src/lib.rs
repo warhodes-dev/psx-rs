@@ -1,4 +1,6 @@
 #![feature(array_chunks, let_chains)]
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 #[macro_use] extern crate byte_unit;
 
@@ -16,7 +18,7 @@ pub struct Context {
 
 impl Context {
     pub fn new(bios_path: &Path) -> Result<Context> {
-        let bios = load_bios_buffer(bios_path)?;
+        let bios = read_bios_file(bios_path)?;
         let psx = emu::Psx::new_from_bios(&bios);
         
         //let sdl = sdl::SdlFrontend::new()?;
@@ -36,7 +38,7 @@ impl Context {
     }
 }
 
-fn load_bios_buffer(path: &Path) -> Result<[u8; emu::bios::BIOS_SIZE]>{
+fn read_bios_file(path: &Path) -> Result<[u8; emu::bios::BIOS_SIZE]>{
     let mut file = File::open(path)?;
     let mut buf = [0u8; emu::bios::BIOS_SIZE as usize];
     file.read_exact(&mut buf)?;

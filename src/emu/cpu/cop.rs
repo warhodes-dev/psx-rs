@@ -1,17 +1,20 @@
+//! Coprocessor module for handling internal coprocessor routines
+
 use crate::emu::{
     Psx,
-    cpu::RegisterIndex,
+    cpu::instruction::RegisterIndex,
 };
 
+#[derive(Default, Debug)]
 pub struct Cop0 {
     sr: u32,
+    cause: u32,
+    epc: u32,
 }
 
 impl Cop0 {
     pub fn new() -> Self {
-        Cop0 {
-            sr: 0,
-        }
+        Default::default()
     }
     pub fn status(&self) -> ProcessorStatus {
         ProcessorStatus(self.sr)
@@ -27,11 +30,16 @@ pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
             }
         }
         12 => {
-            psx.cop0.sr = val;
+            psx.cpu.cop.sr = val;
         },
         13 => {
             if val != 0 {
                 panic!("unhandled write to CAUSE register");
+            }
+        },
+        14 => {
+            if val != 0 {
+                panic!("unhandled write to EPC register")
             }
         }
         _else => panic!("unhandled write to cop0 register {_else}"),
@@ -41,8 +49,9 @@ pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
 pub fn mfc0(psx: &mut Psx, cop_r: RegisterIndex) -> u32 {
     log::trace!("cop0 exec MFC0");
     match cop_r.into() {
-        12 => psx.cop0.sr,
-        13 => panic!("Unhandled read from CAUSE register"),
+        12 => psx.cpu.cop.sr,
+        13 => psx.cpu.cop.cause,
+        14 => psx.cpu.cop.epc,
         _else => panic!("Unhandled read from cop0 register {_else}")
     }
 

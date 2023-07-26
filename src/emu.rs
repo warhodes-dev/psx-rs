@@ -1,22 +1,23 @@
+//! Emulator core library
+
 pub mod bios;
 pub mod cpu;
 pub mod map;
-pub mod cop;
 pub mod ram;
 pub mod access;
 
 use crate::emu::{
     bios::Bios, 
     cpu::Cpu,
-    cop::Cop0,
     ram::Ram,
     access::{Accessable, AccessWidth},
 };
 
+/// Complete emulator core state. The contents of this struct comprise an accurate state
+/// of a virtual PSX system.
 pub struct Psx {
     bios: Bios,
     cpu: Cpu,
-    cop0: Cop0,
     ram: Ram,
     pub instruction_cnt: u64,
 }
@@ -26,7 +27,6 @@ impl Psx {
         Psx { 
             bios: Bios::new(bios_buf), 
             cpu: Cpu::new(),
-            cop0: Cop0::new(),
             ram: Ram::new(),
             instruction_cnt: 0,
         }

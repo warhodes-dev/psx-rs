@@ -1,28 +1,38 @@
-use std::collections::VecDeque;
+//! CPU module for handling all CPU instructions including the dispatch of other modules 
+//! (e.g. coprocessor or GPU)
 
 use crate::emu::{
     bios::BIOS_START,
-    cop,
+    cpu::instruction::{Instruction, RegisterIndex, LoadDelay}
 };
 
 use super::Psx;
 
+mod instruction;
+mod cop;
+
 /// The emulated CPU state
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Cpu {
     /// Program counter register
     pc: u32,
     /// Next program counter, represents branch delay slot
     next_pc: u32,
+    /// Prev program counter, used for exception handling
+    prev_pc: u32,
+
     /// General purpose registers
     regs: [u32; 32],
-    /// Quotient and Remainder registers for DIV instructions
+
+    // Quotient and Remainder registers for DIV instructions
     /// Quotient register
     lo: u32,
     /// Remainder register
     hi: u32,
-    /// Contains queue of instructions to be executed, once per emulation cycle
-    delay_queue: VecDeque<Instruction>,
+
+    /// CPU Coprocessor #0
+    cop: cop::Cop0,
+
     /// Could contain a pending load that has not been consumed yet 
     pending_load: Option<LoadDelay>,
 }
@@ -32,19 +42,14 @@ impl Cpu {
         let mut regs = [0xdeadbeef; 32];
         regs[0] = 0;
 
-        // Delay queue begins with 1 NOOP
-        let delay_queue = VecDeque::from([Instruction(0)]);
-
         let pc = BIOS_START;
 
         Cpu {
             pc,
             next_pc: pc.wrapping_add(4),
+            prev_pc: pc,
             regs,
-            lo: 0xb0ba,
-            hi: 0xcafe,
-            delay_queue,
-            pending_load: None,
+            ..Default::default()
         }
     }
 
@@ -97,7 +102,9 @@ impl Cpu {
     }
 
     fn increment_pc(&mut self) {
-        self.pc = self.pc.wrapping_add(4);
+        self.prev_pc = self.pc;
+        self.pc = self.next_pc;
+        self.next_pc = self.next_pc.wrapping_add(4);
     }
 }
 
@@ -111,8 +118,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     let inst = Instruction(psx.load(inst_addr));
     log::trace!("fetched instruction: 0x{:08x} @ 0x{:08x}", inst.inner(), inst_addr); 
 
-    psx.cpu.pc = psx.cpu.next_pc;
-    psx.cpu.next_pc = psx.cpu.next_pc.wrapping_add(4);
+    psx.cpu.increment_pc();
 
     //IDEA: Handle pending loads here? Maybe
 
@@ -181,109 +187,6 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
     }
 }
 
-
-
-#[derive(Debug, Copy, Clone)]
-pub struct LoadDelay {
-    target_reg: RegisterIndex,
-    val: u32,
-    //delay_cycles: u32,
-}
-
-impl LoadDelay {
-    fn new(target_reg: RegisterIndex, val: u32) -> Self {
-        Self { target_reg, val }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct RegisterIndex(u32);
-
-impl RegisterIndex {
-    const RETURN: RegisterIndex = RegisterIndex(31);
-}
-
-impl From<RegisterIndex> for u32 {
-    fn from(r: RegisterIndex) -> Self {
-        r.0
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Instruction(u32);
-
-impl Instruction {
-    /// Return bits [31:26] of instruction
-    fn opcode(self) -> u32 {
-        let Instruction(op) = self;
-        op >> 26
-    }
-
-    /// Return subfunction value in bits [5:0]
-    fn funct(self) -> u32 {
-        let Instruction(op) = self;
-        op & 0x3f
-    }
-
-    /// Return coprocessor opcode value in bits [25:21]
-    fn cop_op(self) -> u32 {
-        let Instruction(op) = self;
-        let i = (op >> 21) & 0x1f;
-        i
-    }
-
-    /// Return register index in bits [25:21]
-    fn rs(self) -> RegisterIndex {
-        let Instruction(op) = self;
-        let i = (op >> 21) & 0x1f;
-        RegisterIndex(i)
-    }
-
-    /// Return register index in bits [20:16]
-    fn rt(self) -> RegisterIndex {
-        let Instruction(op) = self;
-        let i = (op >> 16) & 0x1f;
-        RegisterIndex(i)
-    }
-
-    /// Return register index in bits [15:11]
-    fn rd(self) -> RegisterIndex {
-        let Instruction(op) = self;
-        let i = (op >> 11) & 0x1f;
-        RegisterIndex(i)
-    }
-
-    /// Return 'Shift amount immediate' value in bits [10:6]
-    fn shamt(self) -> u32 {
-        let Instruction(op) = self;
-        (op >> 6) & 0x1f
-    }
-
-    /// Return immediate value in bits [16:0]
-    fn imm(self) -> u32 {
-        let Instruction(op) = self;
-        op & 0xffff
-    }
-
-    /// Return immediate value in bits [16:0] as a sign-extended 32 bit value
-    fn imm_se(self) -> u32 {
-        let Instruction(op) = self;
-        let sign_extend = |n: u32| { n as i16 as u32 };
-        sign_extend(op & 0xffff)
-    }
-
-    /// Return immediate value in bits [25:0] used for jump address
-    fn addr(self) -> u32 {
-        let Instruction(op) = self;
-        op & 0x3ff_ffff
-    }
-
-    fn inner(self) -> u32 {
-        let Instruction(inner) = self;
-        inner
-    }
-}
-
 /* ========= Opcodes ========= */
 
 /// Load upper (immediate)
@@ -309,7 +212,7 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
 fn op_lw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LW");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring load while cache is isolated");
         return;
     }
@@ -334,7 +237,7 @@ fn op_lw(psx: &mut Psx, inst: Instruction) {
 fn op_lh(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LH");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring load while cache is isolated");
         return;
     }
@@ -360,7 +263,7 @@ fn op_lh(psx: &mut Psx, inst: Instruction) {
 fn op_lb(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LB");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring load while cache is isolated");
         return;
     }
@@ -386,7 +289,7 @@ fn op_lb(psx: &mut Psx, inst: Instruction) {
 fn op_lbu(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec LB");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring load while cache is isolated");
         return;
     }
@@ -411,7 +314,7 @@ fn op_lbu(psx: &mut Psx, inst: Instruction) {
 fn op_sw(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SW");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring store while cache is isolated");
         return;
     }
@@ -434,7 +337,7 @@ fn op_sw(psx: &mut Psx, inst: Instruction) {
 fn op_sh(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SH");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring store while cache is isolated");
         return;
     }
@@ -457,7 +360,7 @@ fn op_sh(psx: &mut Psx, inst: Instruction) {
 fn op_sb(psx: &mut Psx, inst: Instruction) {
     log::trace!("exec SB");
 
-    if psx.cop0.status().is_isolate_cache() {
+    if psx.cpu.cop.status().is_isolate_cache() {
         log::warn!("ignoring store while cache is isolated");
         return;
     }
