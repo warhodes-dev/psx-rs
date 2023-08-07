@@ -3,13 +3,14 @@
 
 use crate::emu::{
     bios::BIOS_START,
-    cpu::instruction::{Instruction, RegisterIndex, LoadDelay}
+    cpu::instruction::{Instruction, RegisterIndex}
 };
 
 use super::Psx;
 
 mod instruction;
 mod cop;
+mod bus;
 
 /// The emulated CPU state
 #[derive(Debug, Default)]
@@ -108,6 +109,19 @@ impl Cpu {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct LoadDelay {
+    pub target_reg: RegisterIndex,
+    pub val: u32,
+    //delay_cycles: u32,
+}
+
+impl LoadDelay {
+    pub fn new(target_reg: RegisterIndex, val: u32) -> Self {
+        Self { target_reg, val }
+    }
+}
+
 pub fn handle_next_instruction(psx: &mut Psx) {
     /* Old */
     //let next_inst = _fetch_instruction(psx);
@@ -131,7 +145,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
     dispatch_instruction(psx, inst);
 }
 
-fn _fetch_instruction(psx: &mut Psx) -> Instruction {
+fn fetch_instruction(psx: &mut Psx) -> Instruction {
     let addr = psx.cpu.pc;
     let inst = Instruction(psx.load(addr));
     log::trace!("fetched instruction: 0x{:08x}", inst.inner()); 
@@ -203,8 +217,6 @@ fn op_lui(psx: &mut Psx, inst: Instruction) {
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, val);
 }
-
-
 
 /// Load word
 // lw rt,imm(rs)

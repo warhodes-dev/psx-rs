@@ -1,3 +1,5 @@
+//! Module for Instruction and its related types, such as LoadDelay and RegisterIndex
+
 #[derive(Debug, Copy, Clone)]
 pub struct LoadDelay {
     pub target_reg: RegisterIndex,
