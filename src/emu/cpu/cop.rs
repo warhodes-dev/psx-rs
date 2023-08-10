@@ -7,9 +7,9 @@ use crate::emu::{
 
 #[derive(Default, Debug)]
 pub struct Cop0 {
-    sr: u32,
-    cause: u32,
-    epc: u32,
+    pub sr: u32,
+    pub cause: u32,
+    pub epc: u32,
 }
 
 impl Cop0 {

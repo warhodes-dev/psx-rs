@@ -102,11 +102,34 @@ impl Cpu {
         self.next_pc = self.pc.wrapping_add(offset);
     }
 
+    fn exception(&mut self, cause: Exception) {
+        let handler = match self.cop.sr & (1 << 22) != 0 {
+            true => 0xbfc00180,
+            false => 0x80000080, //TODO: Better understand what these addrs are
+        };
+
+        // See 'stack of 3 pairs' in emulation guide (pg. 66)
+        let mode = self.cop.sr & 0x3f;
+        self.cop.sr &= !0x3f;
+        self.cop.sr |= (mode << 2) & 0x3f;
+
+        self.cop.cause = (cause as u32) << 2;
+        
+        self.cop.epc = self.pc;
+
+        self.pc = handler;
+        self.next_pc = self.pc.wrapping_add(4);
+    }
+
     fn increment_pc(&mut self) {
         self.prev_pc = self.pc;
         self.pc = self.next_pc;
         self.next_pc = self.next_pc.wrapping_add(4);
     }
+}
+
+enum Exception {
+    Syscall = 0x8,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -123,11 +146,6 @@ impl LoadDelay {
 }
 
 pub fn handle_next_instruction(psx: &mut Psx) {
-    /* Old */
-    //let next_inst = _fetch_instruction(psx);
-    //psx.cpu.delay_queue.push_front(next_inst);
-
-    /* New */
     let inst_addr = psx.cpu.pc;
     let inst = Instruction(psx.load(inst_addr));
     log::trace!("fetched instruction: 0x{:08x} @ 0x{:08x}", inst.inner(), inst_addr); 
@@ -136,20 +154,7 @@ pub fn handle_next_instruction(psx: &mut Psx) {
 
     //IDEA: Handle pending loads here? Maybe
 
-    /* Old */
-    // Get current instruction
-    //let inst = psx.cpu.delay_queue.pop_back()
-        //.expect("delay queue exhausted");
-    //psx.cpu.increment_pc();
-
     dispatch_instruction(psx, inst);
-}
-
-fn fetch_instruction(psx: &mut Psx) -> Instruction {
-    let addr = psx.cpu.pc;
-    let inst = Instruction(psx.load(addr));
-    log::trace!("fetched instruction: 0x{:08x}", inst.inner()); 
-    inst
 }
 
 pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
