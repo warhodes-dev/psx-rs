@@ -3,6 +3,7 @@
 use crate::emu::{
     Psx,
     cpu::instruction::RegisterIndex,
+    cpu::exception::BootExceptionVector,
 };
 
 #[derive(Default, Debug)]
@@ -54,14 +55,20 @@ pub fn mfc0(psx: &mut Psx, cop_r: RegisterIndex) -> u32 {
         14 => psx.cpu.cop.epc,
         _else => panic!("Unhandled read from cop0 register {_else}")
     }
-
 }
 
 pub struct ProcessorStatus(u32);
 
 impl ProcessorStatus {
-    pub fn is_isolate_cache(self) -> bool {
+    pub fn is_isolate_cache(&self) -> bool {
         let ProcessorStatus(status) = self;
         status & 0x10000 != 0
     }
+    pub fn boot_exception_vector(&self) -> BootExceptionVector {
+        match self.0 & (1 << 22) == 0 {
+            true => BootExceptionVector::BEV1,
+            false => BootExceptionVector::BEV0,
+        }
+    }
 }
+

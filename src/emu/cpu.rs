@@ -3,7 +3,8 @@
 
 use crate::emu::{
     bios::BIOS_START,
-    cpu::instruction::{Instruction, RegisterIndex}
+    cpu::instruction::{Instruction, RegisterIndex},
+    cpu::exception::{Exception, ExceptionClass},
 };
 
 use super::Psx;
@@ -11,6 +12,7 @@ use super::Psx;
 mod instruction;
 mod cop;
 mod bus;
+mod exception;
 
 /// The emulated CPU state
 #[derive(Debug, Default)]
@@ -103,10 +105,10 @@ impl Cpu {
     }
 
     fn exception(&mut self, cause: Exception) {
-        let handler = match self.cop.sr & (1 << 22) != 0 {
-            true => 0xbfc00180,
-            false => 0x80000080, //TODO: Better understand what these addrs are
-        };
+        let handler = exception::handler(
+            self.cop.status().boot_exception_vector(), 
+            ExceptionClass::General,
+        );
 
         // See 'stack of 3 pairs' in emulation guide (pg. 66)
         let mode = self.cop.sr & 0x3f;
@@ -126,10 +128,6 @@ impl Cpu {
         self.pc = self.next_pc;
         self.next_pc = self.next_pc.wrapping_add(4);
     }
-}
-
-enum Exception {
-    Syscall = 0x8,
 }
 
 #[derive(Debug, Copy, Clone)]
