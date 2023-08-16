@@ -3,7 +3,7 @@
 use crate::emu::{
     Psx,
     cpu::instruction::RegisterIndex,
-    cpu::exception::BootExceptionVector,
+    cpu::exception::ExceptionVector,
 };
 
 #[derive(Default, Debug)]
@@ -64,10 +64,10 @@ impl ProcessorStatus {
         let ProcessorStatus(status) = self;
         status & 0x10000 != 0
     }
-    pub fn boot_exception_vector(&self) -> BootExceptionVector {
-        match self.0 & (1 << 22) == 0 {
-            true => BootExceptionVector::BEV1,
-            false => BootExceptionVector::BEV0,
+    pub fn boot_exception_vector(&self) -> ExceptionVector {
+        match self.0 & (1 << 22) == 1 {
+            true => ExceptionVector::Boot,
+            false => ExceptionVector::Normal,
         }
     }
 }
