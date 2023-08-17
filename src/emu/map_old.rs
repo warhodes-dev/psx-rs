@@ -55,18 +55,21 @@ pub enum Region {
     Exp2(Mapping),
 }
 
-const MEMORY_MAP: [(Mapping, Region); 10] = [
-    (RAM,       Region::Ram(RAM)),
-    (BIOS,      Region::Bios(BIOS)),
-    (MEM_CTL,   Region::MemCtl(MEM_CTL)),
-    (RAM_CTL,   Region::RamCtl(RAM_CTL)),
-    (IRQ_CTL,   Region::IrqCtl(IRQ_CTL)),
-    (TIMER,     Region::Timer(TIMER)),
-    (CACHE_CTL, Region::CacheCtl(CACHE_CTL)),
-    (SPU,       Region::Spu(SPU)),
-    (EXP1,      Region::Exp1(EXP1)),
-    (EXP2,      Region::Exp1(EXP2)),
-];
+lazy_static! {
+    /// Contains the base address all memory intervals.
+    static ref MEMORY_MAP: IntervalMap<u32, Region> = interval_map! {
+        BIOS.range()      => Region::Bios(BIOS),
+        RAM.range()       => Region::Ram(RAM),
+        MEM_CTL.range()   => Region::MemCtl(MEM_CTL),
+        RAM_CTL.range()   => Region::RamCtl(RAM_CTL),
+        IRQ_CTL.range()   => Region::IrqCtl(IRQ_CTL),
+        TIMER.range()     => Region::Timer(TIMER),
+        CACHE_CTL.range() => Region::CacheCtl(CACHE_CTL),
+        SPU.range()       => Region::Spu(SPU),
+        EXP1.range()      => Region::Exp1(EXP1),
+        EXP2.range()      => Region::Exp2(EXP2),
+    };
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct Mapping {
@@ -85,20 +88,15 @@ impl Mapping {
     const fn range(&self) -> Range<u32> {
         self.base..(self.base + self.size)
     }
-
-    /// Return `Some(offset)` if addr is contained in mapping
-    fn contains(self, addr: u32) -> bool {
-        addr >= self.base && addr < self.base + self.size
-    }
 }
 
 pub fn get_region(addr: u32) -> Region {
-    for (mapping, region) in MEMORY_MAP {
-        if mapping.contains(addr) {
-            return region;
-        }
-    }
-    panic!("Unknown region @ {addr:08x}");
+    let query = addr..=addr;
+    let query_result = MEMORY_MAP.iter(query).next()
+        .unwrap()
+        //.expect(&format!("failed to look up addr 0x{addr:08x} in memory map: unknown region"))
+        .1;
+    *query_result
 }
 
 pub fn mask_region(addr: u32) -> u32 {
