@@ -29,11 +29,11 @@ impl Context {
         })
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<()> {
         loop {
             log::trace!("=== Instruction {:2} issued ===", self.psx.instruction_cnt);
             self.psx.instruction_cnt += 1;
-            crate::emu::cpu::handle_next_instruction(&mut self.psx);
+            crate::emu::cpu::handle_next_instruction(&mut self.psx)?;
         }
     }
 }
