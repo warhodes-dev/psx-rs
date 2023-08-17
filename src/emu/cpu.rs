@@ -7,6 +7,8 @@ use crate::emu::{
     cpu::exception::{Exception, ExceptionClass},
 };
 
+use anyhow::{anyhow,Result};
+
 use super::Psx;
 
 mod instruction;
@@ -143,7 +145,7 @@ impl LoadDelay {
     }
 }
 
-pub fn handle_next_instruction(psx: &mut Psx) {
+pub fn handle_next_instruction(psx: &mut Psx) -> Result<()> {
     let inst_addr = psx.cpu.pc;
     let inst = Instruction(psx.load(inst_addr));
     log::trace!("fetched instruction: 0x{:08x} @ 0x{:08x}", inst.inner(), inst_addr); 
@@ -152,10 +154,10 @@ pub fn handle_next_instruction(psx: &mut Psx) {
 
     //IDEA: Handle pending loads here? Maybe
 
-    dispatch_instruction(psx, inst);
+    dispatch_instruction(psx, inst)
 }
 
-pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
+pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) -> Result<()> {
     // Primary opcode
     match inst.opcode() {
         0x01 => op_bcondz(psx, inst),
@@ -187,7 +189,6 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
             0x03 => op_sra(psx, inst),
             0x08 => op_jr(psx, inst),
             0x09 => op_jalr(psx, inst),
-            0x0c => { std::process::exit(0); }
             0x1a => op_div(psx, inst),
             0x1b => op_divu(psx, inst),
             0x10 => op_mfhi(psx, inst),
@@ -199,10 +200,11 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
             0x25 => op_or(psx, inst),
             0x2A => op_slt(psx, inst),
             0x2B => op_sltu(psx, inst),
-            _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})\nInstructions processed: {}", inst.0, psx.instruction_cnt),
+            _else => return Err(anyhow!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
         },
-        _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})\nInstructions processed: {}", inst.0, psx.instruction_cnt),
-    }
+        _else => return Err(anyhow!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
+    };
+    Ok(())
 }
 
 /* ========= Opcodes ========= */

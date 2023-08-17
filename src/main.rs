@@ -18,7 +18,14 @@ fn main() -> Result<()> {
         //.filter_level(log::LevelFilter::Trace)
         //.init();
 
+    let start = std::time::SystemTime::now();
     let mut ctx = Context::new(Path::new("./scph1001.bin"))?;
-    ctx.run();
+    let any_error = ctx.run();
+    let done = start.elapsed()?.as_millis();
+    println!("Elapsed time: {done}");
+    if let Err(err) = any_error {
+        println!("Error halted operation: {err}");
+    }
+    println!("Total instructions processed: {}", ctx.psx.instruction_cnt);
     Ok(())
 }
