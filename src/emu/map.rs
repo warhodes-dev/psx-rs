@@ -55,6 +55,8 @@ pub enum Region {
     Exp2(Mapping),
 }
 
+// TODO: organize these based on profiling data?
+// TODO: TODO: organize these dynamically based on profiling data?
 const MEMORY_MAP: [(Mapping, Region); 10] = [
     (RAM,       Region::Ram(RAM)),
     (BIOS,      Region::Bios(BIOS)),
