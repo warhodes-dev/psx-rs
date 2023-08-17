@@ -119,7 +119,7 @@ impl Cpu {
 
         self.cop.set_cause(cause);
         
-        self.cop.epc = self.pc;
+        self.cop.epc = self.prev_pc; //TODO: Is this right?
 
         self.pc = handler;
         self.next_pc = self.pc.wrapping_add(4);
@@ -189,6 +189,7 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) -> Result<()> {
             0x03 => op_sra(psx, inst),
             0x08 => op_jr(psx, inst),
             0x09 => op_jalr(psx, inst),
+            0x0c => op_syscall(psx, inst),
             0x1a => op_div(psx, inst),
             0x1b => op_divu(psx, inst),
             0x10 => op_mfhi(psx, inst),
@@ -941,6 +942,11 @@ fn op_andi(psx: &mut Psx, inst: Instruction) {
 
     psx.cpu.handle_pending_load();
     psx.cpu.set_reg(rt, t);
+}
+
+fn op_syscall(psx: &mut Psx, _inst: Instruction) {
+    log::trace!("exec SYSCALL");
+    psx.cpu.exception(Exception::Syscall);
 }
 
 /* === Coprocessor logic === */
