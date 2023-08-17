@@ -93,7 +93,8 @@ impl Mapping {
 pub fn get_region(addr: u32) -> Region {
     let query = addr..=addr;
     let query_result = MEMORY_MAP.iter(query).next()
-        .expect(&format!("failed to look up addr 0x{addr:08x} in memory map: unknown region"))
+        .unwrap()
+        //.expect(&format!("failed to look up addr 0x{addr:08x} in memory map: unknown region"))
         .1;
     *query_result
 }

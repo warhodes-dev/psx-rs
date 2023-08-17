@@ -29,7 +29,7 @@ impl Context {
         })
     }
 
-    pub fn run(&mut self) -> ! {
+    pub fn run(&mut self) {
         loop {
             log::trace!("=== Instruction {:2} issued ===", self.psx.instruction_cnt);
             self.psx.instruction_cnt += 1;

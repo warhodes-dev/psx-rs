@@ -20,4 +20,5 @@ fn main() -> Result<()> {
 
     let mut ctx = Context::new(Path::new("./scph1001.bin"))?;
     ctx.run();
+    Ok(())
 }

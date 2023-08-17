@@ -14,7 +14,6 @@ mod cop;
 mod bus;
 mod exception;
 
-/// The emulated CPU state
 #[derive(Debug, Default)]
 pub struct Cpu {
     /// Program counter register
@@ -95,7 +94,6 @@ impl Cpu {
     }
 
     fn branch(&mut self, offset: u32) {
-        // TODO: Area for improvement. Try figuring out how to remove the sub(4)
         log::trace!("cpu branching to 0x{offset:08x}");
 
         // PC must be aligned on 32 bits
@@ -106,16 +104,18 @@ impl Cpu {
 
     fn exception(&mut self, cause: Exception) {
         let handler = exception::handler(
-            self.cop.status().boot_exception_vector(), 
+            self.cop.status().exception_vector(), 
             ExceptionClass::General,
         );
 
-        // See 'stack of 3 pairs' in emulation guide (pg. 66)
-        let mode = self.cop.sr & 0x3f;
-        self.cop.sr &= !0x3f;
-        self.cop.sr |= (mode << 2) & 0x3f;
+        // From emulation guide, pg. 66:
+        //
+        // Entering an exception pushes a pair of zeroes
+        // [onto the interrupt mode] stack which disables
+        // interrupts and puts the CPU in kernel mode.
+        self.cop.reset_mode();
 
-        self.cop.cause = (cause as u32) << 2;
+        self.cop.set_cause(cause);
         
         self.cop.epc = self.pc;
 
@@ -187,6 +187,7 @@ pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) {
             0x03 => op_sra(psx, inst),
             0x08 => op_jr(psx, inst),
             0x09 => op_jalr(psx, inst),
+            0x0c => { std::process::exit(0); }
             0x1a => op_div(psx, inst),
             0x1b => op_divu(psx, inst),
             0x10 => op_mfhi(psx, inst),

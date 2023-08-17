@@ -2,14 +2,19 @@
 
 use crate::emu::{
     Psx,
-    cpu::instruction::RegisterIndex,
-    cpu::exception::ExceptionVector,
+    cpu::{
+        instruction::RegisterIndex,
+        exception::{Exception, ExceptionVector},
+    }
 };
 
 #[derive(Default, Debug)]
 pub struct Cop0 {
-    pub sr: u32,
-    pub cause: u32,
+    /// Status register
+    sr: u32,
+    /// Cause (exception) register
+    cause: u32,
+    /// Exception program counter
     pub epc: u32,
 }
 
@@ -17,11 +22,34 @@ impl Cop0 {
     pub fn new() -> Self {
         Default::default()
     }
+
     pub fn status(&self) -> ProcessorStatus {
         ProcessorStatus(self.sr)
     }
+
+    /// Disables interrupts and sets cpu to kernel mode
+    //
+    // Stores previous processor mode in mode stack.
+    //
+    // From emulation guide, pg. 66:
+    //
+    // Shift bits[5:0] of ‘SR‘ two places to the left.
+    // Those bits are three pairs of InterruptEnable/
+    // UserMode bits behaving like a stack 3 entries 
+    // deep.
+    pub fn reset_mode(&mut self) {
+        
+        let mode = self.sr & 0x3f;
+        self.sr &= !0x3f;
+        self.sr |= (mode << 2) & 0x3f;
+    }
+
+    pub fn set_cause(&mut self, cause: Exception) {
+        self.cause = (cause as u32) << 2;
+    }
 }
 
+/// COP0 internal implementation of MTC0: Move to coprocessor 0
 pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
     log::trace!("cop0 exec MTC0");
     match cop_r.into() {
@@ -47,6 +75,7 @@ pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
     } 
 }
 
+/// COP0 internal implementation of MFC0: Move from coprocessor 0
 pub fn mfc0(psx: &mut Psx, cop_r: RegisterIndex) -> u32 {
     log::trace!("cop0 exec MFC0");
     match cop_r.into() {
@@ -64,7 +93,7 @@ impl ProcessorStatus {
         let ProcessorStatus(status) = self;
         status & 0x10000 != 0
     }
-    pub fn boot_exception_vector(&self) -> ExceptionVector {
+    pub fn exception_vector(&self) -> ExceptionVector {
         match self.0 & (1 << 22) == 1 {
             true => ExceptionVector::Boot,
             false => ExceptionVector::Normal,
