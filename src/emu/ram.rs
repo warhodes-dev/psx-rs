@@ -17,7 +17,7 @@ impl Ram {
     }
 
     pub fn load<T: Accessable>(&self, offset: u32) -> T {
-        log::trace!("ram.load(0x{offset:08x}) ({:?})", T::width());
+        tracing::trace!("ram.load(0x{offset:08x}) ({:?})", T::width());
 
         // Get value from correct byte subindex
         let word = self.mem[offset as usize >> 2];
@@ -36,7 +36,7 @@ impl Ram {
     }
 
     pub fn store<T: Accessable>(&mut self, offset: u32, val: T) {
-        log::trace!("ram.store(0x{offset:08x}) ({:?})", T::width());
+        tracing::trace!("ram.store(0x{offset:08x}) ({:?})", T::width());
 
         // Shift value into correct byte subindex
         match T::width() {

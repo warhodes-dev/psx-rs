@@ -24,7 +24,7 @@ impl Bios {
     }
 
     pub fn load<T: Accessable>(&self, offset: u32) -> T {
-        log::trace!("bios.load(0x{offset:08x}) ({:?})", T::width());
+        tracing::trace!("bios.load(0x{offset:08x}) ({:?})", T::width());
 
         // Get value from correct byte subindex
         let word = self.mem[offset as usize / 4];

@@ -45,13 +45,14 @@ impl Cop0 {
     }
 
     pub fn set_cause(&mut self, cause: Exception) {
-        self.cause = (cause as u32) << 2;
+        self.cause &= !0x7c;
+        self.cause |= (cause as u32) << 2;
     }
 }
 
 /// COP0 internal implementation of MTC0: Move to coprocessor 0
 pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
-    log::trace!("cop0 exec MTC0");
+    tracing::trace!("cop0 exec MTC0");
     match cop_r.into() {
         3 | 5 | 6 | 7 | 9 | 11 => {
             if val != 0 {
@@ -77,7 +78,7 @@ pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
 
 /// COP0 internal implementation of MFC0: Move from coprocessor 0
 pub fn mfc0(psx: &mut Psx, cop_r: RegisterIndex) -> u32 {
-    log::trace!("cop0 exec MFC0");
+    tracing::trace!("cop0 exec MFC0");
     match cop_r.into() {
         12 => psx.cpu.cop.sr,
         13 => psx.cpu.cop.cause,
@@ -94,7 +95,7 @@ impl ProcessorStatus {
         status & 0x10000 != 0
     }
     pub fn exception_vector(&self) -> ExceptionVector {
-        match self.0 & (1 << 22) == 1 {
+        match self.0 & (1 << 22) != 0 {
             true => ExceptionVector::Boot,
             false => ExceptionVector::Normal,
         }

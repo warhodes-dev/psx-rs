@@ -6,7 +6,7 @@ pub enum Exception {
 const EXCEPTION_VECTORS: [[u32; 4]; 2] = [
 //   Reset        TLBMiss      Debug Break  General
     [0xbfc0_0000, 0x8000_0000, 0x8000_0040, 0x8000_0080], // BEV = 0
-    [0xbfc0_0000, 0xbfc0_0100, 0xbfc0_0140, 0xbfc0_0180]  // BEV = 1
+    [0xbfc0_0000, 0xbfc0_0100, 0xbfc0_0140, 0xbfc0_0180], // BEV = 1
 ];
 
 pub enum ExceptionClass {
@@ -17,8 +17,8 @@ pub enum ExceptionClass {
 }
 
 pub enum ExceptionVector {
-    Boot,
-    Normal,
+    Normal = 0,
+    Boot = 1,
 }
 
 pub fn handler(vector: ExceptionVector, class: ExceptionClass) -> u32 {

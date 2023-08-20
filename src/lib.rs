@@ -5,7 +5,24 @@
 #[macro_use] extern crate byte_unit;
 
 use std::{path::Path, fs::File, io::Read};
-use anyhow::Result;
+
+use tracing_subscriber::{reload, filter, Registry, prelude::*};
+pub static mut TRACING_RELOAD_HANDLE: Option<reload::Handle<filter::LevelFilter, Registry>> = None;
+
+pub fn set_log_level(filter_level: filter::LevelFilter) {
+    unsafe { 
+        let _ = TRACING_RELOAD_HANDLE.as_ref().unwrap().modify(|filter| *filter = filter_level);
+    }
+}
+
+static mut KILL_COUNT: u64 = 0;
+pub fn set_kill_count(cnt: u64) {
+    unsafe {
+        KILL_COUNT = cnt;
+    }
+}
+
+use anyhow::{Result, anyhow};
 
 pub mod emu;
 //pub mod sdl;
@@ -31,9 +48,15 @@ impl Context {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            log::trace!("=== Instruction {:2} issued ===", self.psx.instruction_cnt);
+            tracing::trace!("=== Instruction {:2} issued ===", self.psx.instruction_cnt);
             self.psx.instruction_cnt += 1;
             crate::emu::cpu::handle_next_instruction(&mut self.psx)?;
+
+            unsafe {
+                if self.psx.instruction_cnt == KILL_COUNT {
+                    return Err(anyhow!("Forcing stop"));
+                }
+            }
         }
     }
 }

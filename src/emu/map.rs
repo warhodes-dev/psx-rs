@@ -2,7 +2,6 @@
 
 use std::ops::Range;
 use lazy_static::lazy_static;
-use iset::{interval_map, IntervalMap};
 
 const REGION_MASK: [u32; 8] = [
     // KUSEG: 2048 MB

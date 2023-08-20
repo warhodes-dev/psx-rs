@@ -34,7 +34,7 @@ impl Psx {
 
     /// Routes load request @ addr to proper device
     pub fn load<T: Accessable>(&self, addr: u32) -> T {
-        log::trace!("psx.load(0x{addr:08x}) ({:?})", T::width());
+        tracing::trace!("psx.load(0x{addr:08x}) ({:?})", T::width());
 
         if cfg!(debug_assertions) {
             if T::width() == AccessWidth::Word && addr % 4 != 0 {
@@ -56,42 +56,42 @@ impl Psx {
                 return self.ram.load::<T>(offset);
             },
             map::Region::MemCtl(_mapping) => {
-                log::warn!("read from memctrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from memctrl region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::RamCtl(_mapping) => {
-                log::warn!("read from ramctrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from ramctrl region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::IrqCtl(_mapping) => {
-                log::warn!("read from irqctrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from irqctrl region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::Timer(_mapping) => {
-                log::warn!("read from timer region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from timer region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::CacheCtl(_mapping) => {
-                log::warn!("read from cachectrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from cachectrl region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::Spu(_mapping) => {
-                log::warn!("read from SPU memory region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from SPU memory region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::Exp1(_mapping) => {
-                log::warn!("read from expansion region 1 (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from expansion region 1 (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::Exp2(_mapping) => {
-                log::warn!("read from expansion region 2 (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from expansion region 2 (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
         }
     }
 
     pub fn store<T: Accessable>(&mut self, addr: u32, val: T) {
-        log::trace!("psx.store(0x{addr:08x}, {}) ({:?})", val.as_u32(), T::width());
+        tracing::trace!("psx.store(0x{addr:08x}, {}) ({:?})", val.as_u32(), T::width());
 
         if cfg!(debug_assertions) {
             if T::width() == AccessWidth::Word && addr % 4 != 0 {
@@ -112,28 +112,28 @@ impl Psx {
                 self.ram.store::<T>(offset, val);
             },
             map::Region::MemCtl(_mapping) => {
-                log::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("wrote to memctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::RamCtl(_mapping) => {
-                log::warn!("wrote to ramctrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("wrote to ramctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::IrqCtl(_mapping) => {
-                log::warn!("wrote to irqctrl region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("wrote to irqctrl region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::Timer(_mapping) => {
-                log::warn!("wrote to timer region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("wrote to timer region (0x{addr:08x}), but this is unimplemented");
             },
             map::Region::CacheCtl(_mapping) => {
-                log::warn!("wrote to cachectrl region (0x{addr:08x}), but this is unsupported");
+                tracing::warn!("wrote to cachectrl region (0x{addr:08x}), but this is unsupported");
             },
             map::Region::Spu(_mapping) => {
-                log::warn!("wrote to SPU memory region (0x{addr:08x}), but this is unsupported");
+                tracing::warn!("wrote to SPU memory region (0x{addr:08x}), but this is unsupported");
             },
             map::Region::Exp1(_mapping) => {
-                log::warn!("wrote to expansion region 1 (0x{addr:08x}), but this is unsupported");
+                tracing::warn!("wrote to expansion region 1 (0x{addr:08x}), but this is unsupported");
             },
             map::Region::Exp2(_mapping) => {
-                log::warn!("wrote to expansion region 2 (0x{addr:08x}), but this is unsupported");
+                tracing::warn!("wrote to expansion region 2 (0x{addr:08x}), but this is unsupported");
             }
         }
     }
