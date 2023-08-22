@@ -1,4 +1,5 @@
 //! Module for Instruction and its related types, such as LoadDelay and RegisterIndex
+use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub struct LoadDelay {
@@ -98,5 +99,17 @@ impl Instruction {
     pub fn inner(self) -> u32 {
         let Instruction(inner) = self;
         inner
+    }
+}
+
+impl fmt::LowerHex for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:08x}", self.0)
+    }
+}
+
+impl fmt::UpperHex for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:08X}", self.0)
     }
 }

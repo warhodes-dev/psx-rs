@@ -37,11 +37,17 @@ impl Cop0 {
     // Those bits are three pairs of InterruptEnable/
     // UserMode bits behaving like a stack 3 entries 
     // deep.
-    pub fn reset_mode(&mut self) {
+    pub fn push_mode(&mut self) {
         
         let mode = self.sr & 0x3f;
         self.sr &= !0x3f;
         self.sr |= (mode << 2) & 0x3f;
+    }
+
+    pub fn pop_mode(&mut self) {
+        let mode = self.sr & 0x3f;
+        self.sr &= !0x3f;
+        self.sr |= mode >> 2;
     }
 
     pub fn set_cause(&mut self, cause: Exception) {

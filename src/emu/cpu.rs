@@ -43,6 +43,11 @@ pub struct Cpu {
 
     /// Could contain a pending load that has not been consumed yet 
     pending_load: Option<LoadDelay>,
+
+    /// Does the CPU have a pending branch?
+    pending_branch: bool,
+    /// Is the CPU in the branch delay slot?
+    branch_delay_slot: bool,
 }
 
 impl Cpu {
@@ -122,7 +127,7 @@ impl Cpu {
         // Entering an exception pushes a pair of zeroes
         // [onto the interrupt mode] stack which disables
         // interrupts and puts the CPU in kernel mode.
-        self.cop.reset_mode();
+        self.cop.push_mode();
 
         self.cop.set_cause(cause);
         
@@ -137,6 +142,12 @@ impl Cpu {
         self.pc = self.next_pc;
         self.next_pc = self.next_pc.wrapping_add(4);
     }
+}
+
+#[derive(Debug)]
+enum BranchDelay {
+    Branch,
+    Delay,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -156,10 +167,13 @@ pub fn handle_next_instruction(psx: &mut Psx) -> Result<()> {
     let inst_addr = psx.cpu.pc;
     let inst = Instruction(psx.load(inst_addr));
 
-    tracing::trace!("fetched instruction: 0x{:08x} @ 0x{:08x}", inst.inner(), inst_addr); 
+    tracing::trace!("fetched instruction: 0x{inst:08x} @ 0x{inst_addr:08x}"); 
 
     psx.cpu.increment_pc();
     psx.cpu.handle_pending_load();
+
+    psx.cpu.branch_delay_slot = psx.cpu.pending_branch;
+    psx.cpu.pending_branch = false;
 
     dispatch_instruction(psx, inst)?;
 
@@ -702,6 +716,7 @@ fn op_j(psx: &mut Psx, inst: Instruction) {
     psx.cpu.next_pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
 
     //psx.cpu.handle_pending_load();
+    psx.cpu.pending_branch = true;
 }
 
 /// Jump and link
@@ -717,6 +732,8 @@ fn op_jal(psx: &mut Psx, inst: Instruction) {
     //psx.cpu.handle_pending_load();
 
     psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
+
+    psx.cpu.pending_branch = true;
 }
 
 /// Jump to register
@@ -730,6 +747,7 @@ fn op_jr(psx: &mut Psx, inst: Instruction) {
     psx.cpu.next_pc = addr;
 
     //psx.cpu.handle_pending_load();
+    psx.cpu.pending_branch = true;
 }
 
 /// Jump to register and link
@@ -747,6 +765,8 @@ fn op_jalr(psx: &mut Psx, inst: Instruction) {
     //psx.cpu.handle_pending_load();
 
     psx.cpu.set_reg(rd, return_addr);
+
+    psx.cpu.pending_branch = true;
 }
 
 /// Branch if equal
@@ -766,6 +786,7 @@ fn op_beq(psx: &mut Psx, inst: Instruction) {
     }
 
     //psx.cpu.handle_pending_load();
+    psx.cpu.pending_branch = true;
 }
 
 /// Branch if not equal
@@ -785,11 +806,17 @@ fn op_bne(psx: &mut Psx, inst: Instruction) {
     }
 
     //psx.cpu.handle_pending_load();
+    psx.cpu.pending_branch = true;
 }
 
 /// Branch (condition) zero
 /// This opcode can be bltz, bgez, bltzal, or bgezal
 fn op_bcondz(psx: &mut Psx, inst: Instruction) {
+    enum BranchCondition {
+        LessThan,
+        GreaterEqual,
+    }
+
     tracing::trace!("exec BcondZ");
 
     let i = inst.imm_se();
@@ -798,8 +825,6 @@ fn op_bcondz(psx: &mut Psx, inst: Instruction) {
     let s = psx.cpu.reg(rs) as i32;
 
     let discriminant = (inst.inner() >> 16) & 0x1f;
-    let is_bltz = discriminant & 0x01 == 0;
-    let is_bgez = discriminant & 0x01 == 1;
     let should_link = discriminant & 0x1e == 0x80;
 
     if should_link {
@@ -807,12 +832,13 @@ fn op_bcondz(psx: &mut Psx, inst: Instruction) {
         psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
     }
 
-    if is_bltz && s < 0   
-    || is_bgez && s >= 0 {
+    if discriminant & 1 == 0 && s < 0
+    || discriminant & 1 == 1 && s >= 0 {
         psx.cpu.branch(i);
     }
 
     //psx.cpu.handle_pending_load();
+    psx.cpu.pending_branch = true;
 }
 
 /// Branch if greater than zero
@@ -995,7 +1021,7 @@ fn op_syscall(psx: &mut Psx, _inst: Instruction) {
     psx.cpu.exception(Exception::Syscall);
 }
 
-/* === Coprocessor tracingic === */
+/* === Coprocessor logic === */
 
 /// Invoke coprocessor 0
 // cop0 cop_op
@@ -1005,7 +1031,8 @@ fn op_cop0(psx: &mut Psx, inst: Instruction) {
     match inst.cop_op() {
         0x00 => op_mfc0(psx, inst),
         0x04 => op_mtc0(psx, inst),
-        _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{:08x})", inst.inner()),
+        0x10 => op_rfe(psx, inst),
+        _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{inst:08x})"),
     }
 }
 
@@ -1035,4 +1062,12 @@ fn op_mtc0(psx: &mut Psx, inst: Instruction) {
 
     //psx.cpu.handle_pending_load();
     cop::mtc0(psx, cop_r, val);
+}
+
+fn op_rfe(psx: &mut Psx, inst: Instruction) {
+    tracing::trace!("delegate RFE");
+    if inst.inner() & 0x3f != 0b01_0000 {
+        panic!("Unsupported cop0 instruction: {inst:08x}");
+    }
+    psx.cpu.cop.pop_mode();
 }
