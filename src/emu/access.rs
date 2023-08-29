@@ -1,4 +1,4 @@
-//! Allows easy conversions and type safety for the memory accessable types (u8, u16, and u32)
+//! Allows easy conversions and type safety for the memory Access types (u8, u16, and u32)
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum AccessWidth {
@@ -7,7 +7,7 @@ pub enum AccessWidth {
     Word,
 }
 
-pub trait Accessable {
+pub trait Access {
     fn width() -> AccessWidth;
     fn from_u32(word: u32) -> Self;
     fn from_u16(word: u16) -> Self;
@@ -17,7 +17,7 @@ pub trait Accessable {
     fn as_u8(&self) -> u8;
 }
 
-impl Accessable for u8 {
+impl Access for u8 {
     fn width() -> AccessWidth { AccessWidth::Byte }
 
     fn from_u32(word: u32) -> u8 { word as u8 }
@@ -29,7 +29,7 @@ impl Accessable for u8 {
     fn as_u8(&self) -> u8 { *self }
 }
 
-impl Accessable for u16 {
+impl Access for u16 {
     fn width() -> AccessWidth { AccessWidth::Half }
 
     fn from_u32(word: u32) -> u16 { word as u16 }
@@ -41,7 +41,7 @@ impl Accessable for u16 {
     fn as_u8(&self) -> u8 { *self as u8 }
 }
 
-impl Accessable for u32 {
+impl Access for u32 {
     fn width() -> AccessWidth { AccessWidth::Word }
 
     fn from_u32(word: u32) -> u32 { word }

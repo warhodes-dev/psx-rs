@@ -1,6 +1,6 @@
 //! Access executable RAM (read and write) 
 
-use crate::emu::access::{Accessable, AccessWidth};
+use crate::emu::access::{Access, AccessWidth};
 
 pub const RAM_SIZE : usize = 2 * 1024 * 1024;
 pub const RAM_START: u32   = 0xa000_0000;
@@ -16,7 +16,7 @@ impl Ram {
         Ram { mem }
     }
 
-    pub fn load<T: Accessable>(&self, offset: u32) -> T {
+    pub fn load<T: Access>(&self, offset: u32) -> T {
         tracing::trace!("ram.load(0x{offset:08x}) ({:?})", T::width());
 
         // Get value from correct byte subindex
@@ -32,10 +32,10 @@ impl Ram {
             }
             AccessWidth::Word => word,
         };
-        Accessable::from_u32(sized_word)
+        Access::from_u32(sized_word)
     }
 
-    pub fn store<T: Accessable>(&mut self, offset: u32, val: T) {
+    pub fn store<T: Access>(&mut self, offset: u32, val: T) {
         tracing::trace!("ram.store(0x{offset:08x}) ({:?})", T::width());
 
         // Shift value into correct byte subindex

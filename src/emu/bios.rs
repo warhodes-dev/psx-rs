@@ -1,6 +1,6 @@
 //! Module for handling bios access and database of bios versions
 
-use crate::emu::access::{AccessWidth, Accessable};
+use crate::emu::access::{AccessWidth, Access};
 
 pub const BIOS_SIZE : usize = 512 * 1024;
 pub const BIOS_START: u32   = 0xbfc0_0000;
@@ -23,7 +23,7 @@ impl Bios {
         &self.mem
     }
 
-    pub fn load<T: Accessable>(&self, offset: u32) -> T {
+    pub fn load<T: Access>(&self, offset: u32) -> T {
         tracing::trace!("bios.load(0x{offset:08x}) ({:?})", T::width());
 
         // Get value from correct byte subindex
@@ -39,6 +39,6 @@ impl Bios {
             }
             AccessWidth::Word => word,
         };
-        Accessable::from_u32(sized_word)
+        Access::from_u32(sized_word)
     }
 }

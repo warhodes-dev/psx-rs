@@ -5,6 +5,7 @@ use crate::emu::{
     bios::BIOS_START,
     cpu::instruction::{Instruction, RegisterIndex},
     cpu::exception::{Exception, ExceptionClass},
+    bus::Bus,
 };
 
 use anyhow::{anyhow,Result};
@@ -13,7 +14,6 @@ use super::Psx;
 
 mod instruction;
 mod cop;
-mod bus;
 mod exception;
 
 #[derive(Debug, Default)]
@@ -163,911 +163,913 @@ impl LoadDelay {
     }
 }
 
-pub fn handle_next_instruction(psx: &mut Psx) -> Result<()> {
-    let inst_addr = psx.cpu.pc;
-    let inst = Instruction(psx.load(inst_addr));
+impl Cpu {
+    pub fn handle_next_instruction(&mut self, bus: &mut Bus) -> Result<()> {
+        let inst_addr = self.pc;
+        let inst = Instruction(bus.load(inst_addr));
 
-    tracing::trace!("fetched instruction: 0x{inst:08x} @ 0x{inst_addr:08x}"); 
+        tracing::trace!("fetched instruction: 0x{inst:08x} @ 0x{inst_addr:08x}"); 
 
-    psx.cpu.increment_pc();
-    psx.cpu.handle_pending_load();
+        self.increment_pc();
+        self.handle_pending_load();
 
-    psx.cpu.branch_delay_slot = psx.cpu.pending_branch;
-    psx.cpu.pending_branch = false;
+        self.branch_delay_slot = self.pending_branch;
+        self.pending_branch = false;
 
-    dispatch_instruction(psx, inst)?;
+        self.dispatch_instruction(bus, inst)?;
 
-    psx.cpu.regs = psx.cpu.out_regs;
+        self.regs = self.out_regs;
 
-    Ok(())
-}
-
-pub fn dispatch_instruction(psx: &mut Psx, inst: Instruction) -> Result<()> {
-    // Primary opcode
-    match inst.opcode() {
-        0x01 => op_bcondz(psx, inst),
-        0x02 => op_j(psx, inst),
-        0x03 => op_jal(psx, inst),
-        0x04 => op_beq(psx, inst),
-        0x05 => op_bne(psx, inst),
-        0x06 => op_blez(psx, inst),
-        0x07 => op_bgtz(psx, inst),
-        0x08 => op_addi(psx, inst),
-        0x09 => op_addiu(psx, inst),
-        0x0A => op_slti(psx, inst),
-        0x0B => op_sltiu(psx, inst),
-        0x0C => op_andi(psx, inst),
-        0x0D => op_ori(psx, inst),
-        0x0F => op_lui(psx, inst),
-        0x10 => op_cop0(psx, inst),
-        0x20 => op_lb(psx, inst),
-        0x23 => op_lw(psx, inst),
-        0x24 => op_lbu(psx, inst),
-        0x28 => op_sb(psx, inst),
-        0x29 => op_sh(psx, inst),
-        0x2B => op_sw(psx, inst),
-
-        // Secondary Opcodes
-        0x00 => match inst.funct() { 
-            0x00 => op_sll(psx, inst),
-            0x02 => op_srl(psx, inst),
-            0x03 => op_sra(psx, inst),
-            0x08 => op_jr(psx, inst),
-            0x09 => op_jalr(psx, inst),
-            0x0c => op_syscall(psx, inst),
-            0x1a => op_div(psx, inst),
-            0x1b => op_divu(psx, inst),
-            0x10 => op_mfhi(psx, inst),
-            0x11 => op_mthi(psx, inst),
-            0x12 => op_mflo(psx, inst),
-            0x13 => op_mtlo(psx, inst),
-            0x20 => op_add(psx, inst),
-            0x21 => op_addu(psx, inst),
-            0x23 => op_subu(psx, inst),
-            0x24 => op_and(psx, inst),
-            0x25 => op_or(psx, inst),
-            0x2A => op_slt(psx, inst),
-            0x2B => op_sltu(psx, inst),
-            _else => return Err(anyhow!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
-        },
-        _else => return Err(anyhow!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
-    };
-    Ok(())
-}
-
-/* ========= Opcodes ========= */
-
-/// Load upper (immediate)
-// lui rt,imm
-// rt = (0x0000..0xffff) << 16
-fn op_lui(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec LUI");
-    let i = inst.imm();
-    let rt = inst.rt(); // TODO: Pipelining
-
-    // Low 16 bits are set to 0
-    let val = i << 16;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val);
-}
-
-/// Load word
-// lw rt,imm(rs)
-// rt = [imm + rs]
-fn op_lw(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec LW");
-
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring load while cache is isolated");
-        return;
+        Ok(())
     }
 
-    let base = inst.imm_se();
+    pub fn dispatch_instruction(&mut self, bus: &mut Bus, inst: Instruction) -> Result<()> {
+        // Primary opcode
+        match inst.opcode() {
+            0x01 => self.op_bcondz(bus, inst),
+            0x02 => self.op_j(bus, inst),
+            0x03 => self.op_jal(bus, inst),
+            0x04 => self.op_beq(bus, inst),
+            0x05 => self.op_bne(bus, inst),
+            0x06 => self.op_blez(bus, inst),
+            0x07 => self.op_bgtz(bus, inst),
+            0x08 => self.op_addi(bus, inst),
+            0x09 => self.op_addiu(bus, inst),
+            0x0A => self.op_slti(bus, inst),
+            0x0B => self.op_sltiu(bus, inst),
+            0x0C => self.op_andi(bus, inst),
+            0x0D => self.op_ori(bus, inst),
+            0x0F => self.op_lui(bus, inst),
+            0x10 => self.op_cop0(bus, inst),
+            0x20 => self.op_lb(bus, inst),
+            0x23 => self.op_lw(bus, inst),
+            0x24 => self.op_lbu(bus, inst),
+            0x28 => self.op_sb(bus, inst),
+            0x29 => self.op_sh(bus, inst),
+            0x2B => self.op_sw(bus, inst),
 
-    let rt = inst.rt();
-    let rs = inst.rs();
-
-    let offset = psx.cpu.reg(rs);
-    let addr = base.wrapping_add(offset);
-
-    let val = psx.load(addr);
-
-    let load = LoadDelay::new(rt, val);
-    psx.cpu.chain_pending_load(load);
-}
-
-/// Load halfword
-// lh rt,imm(rs)
-// rt = [imm + rs]
-fn op_lh(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec LH");
-
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring load while cache is isolated");
-        return;
+            // Secondary Opcodes
+            0x00 => match inst.funct() { 
+                0x00 => self.op_sll(bus, inst),
+                0x02 => self.op_srl(bus, inst),
+                0x03 => self.op_sra(bus, inst),
+                0x08 => self.op_jr(bus, inst),
+                0x09 => self.op_jalr(bus, inst),
+                0x0c => self.op_syscall(bus, inst),
+                0x1a => self.op_div(bus, inst),
+                0x1b => self.op_divu(bus, inst),
+                0x10 => self.op_mfhi(bus, inst),
+                0x11 => self.op_mthi(bus, inst),
+                0x12 => self.op_mflo(bus, inst),
+                0x13 => self.op_mtlo(bus, inst),
+                0x20 => self.op_add(bus, inst),
+                0x21 => self.op_addu(bus, inst),
+                0x23 => self.op_subu(bus, inst),
+                0x24 => self.op_and(bus, inst),
+                0x25 => self.op_or(bus, inst),
+                0x2A => self.op_slt(bus, inst),
+                0x2B => self.op_sltu(bus, inst),
+                _else => return Err(anyhow!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
+            },
+            _else => return Err(anyhow!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
+        };
+        Ok(())
     }
 
-    let base = inst.imm_se();
+    /* ========= Opcodes ========= */
 
-    let rt = inst.rt();
-    let rs = inst.rs();
+    /// Load upper (immediate)
+    // lui rt,imm
+    // rt = (0x0000..0xffff) << 16
+    fn op_lui(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LUI");
+        let i = inst.imm();
+        let rt = inst.rt(); // TODO: Pipelining
 
-    let offset = psx.cpu.reg(rs);
-    let addr = base.wrapping_add(offset);
+        // Low 16 bits are set to 0
+        let val = i << 16;
 
-    // Cast as i16 to force sign extension
-    let val = psx.load::<u16>(addr) as i16;
-
-    let load = LoadDelay::new(rt, val as u32);
-    psx.cpu.chain_pending_load(load);
-}
-
-/// Load byte 
-// lb rt,imm(rs)
-// rt = [imm + rs] (With sign extension)
-fn op_lb(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec LB");
-
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring load while cache is isolated");
-        return;
+        //self.handle_pending_load();
+        self.set_reg(rt, val);
     }
 
-    let base = inst.imm_se();
+    /// Load word
+    // lw rt,imm(rs)
+    // rt = [imm + rs]
+    fn op_lw(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LW");
 
-    let rt = inst.rt();
-    let rs = inst.rs();
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
 
-    let offset = psx.cpu.reg(rs);
-    let addr = base.wrapping_add(offset);
+        let base = inst.imm_se();
 
-    // Cast as i8 to force sign extension
-    let val = psx.load::<u8>(addr) as i8;
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-    let load = LoadDelay::new(rt, val as u32);
-    psx.cpu.chain_pending_load(load);
-}
+        let offset = self.reg(rs);
+        let addr = base.wrapping_add(offset);
 
-/// Load byte unsigned
-// lbu rt,imm(rs)
-// rt = [imm + rs]
-fn op_lbu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec LB");
+        let val = bus.load(addr);
 
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring load while cache is isolated");
-        return;
+        let load = LoadDelay::new(rt, val);
+        self.chain_pending_load(load);
     }
 
-    let base = inst.imm_se();
+    /// Load halfword
+    // lh rt,imm(rs)
+    // rt = [imm + rs]
+    fn op_lh(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LH");
 
-    let rt = inst.rt();
-    let rs = inst.rs();
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
 
-    let offset = psx.cpu.reg(rs);
-    let addr = base.wrapping_add(offset);
+        let base = inst.imm_se();
 
-    let val = psx.load::<u8>(addr);
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-    let load = LoadDelay::new(rt, val as u32);
-    psx.cpu.chain_pending_load(load);
-}
+        let offset = self.reg(rs);
+        let addr = base.wrapping_add(offset);
 
-/// Store word
-// sw rt,imm(rs)
-// [imm + rs] = rt
-fn op_sw(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SW");
+        // Cast as i16 to force sign extension
+        let val = bus.load::<u16>(addr) as i16;
 
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring store while cache is isolated");
-        return;
+        let load = LoadDelay::new(rt, val as u32);
+        self.chain_pending_load(load);
     }
 
-    let i = inst.imm_se();
-    let rt = inst.rt();
-    let rs = inst.rs();
+    /// Load byte 
+    // lb rt,imm(rs)
+    // rt = [imm + rs] (With sign extension)
+    fn op_lb(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LB");
 
-    let offset = psx.cpu.reg(rs);
-    let addr = offset.wrapping_add(i);
-    let val = psx.cpu.reg(rt);
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
 
-    //psx.cpu.handle_pending_load();
-    psx.store(addr, val);
-}
+        let base = inst.imm_se();
 
-/// Store halfword
-//  rt,imm(rs)
-//  [imm+rs]=(rt & 0xffff)
-fn op_sh(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SH");
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring store while cache is isolated");
-        return;
+        let offset = self.reg(rs);
+        let addr = base.wrapping_add(offset);
+
+        // Cast as i8 to force sign extension
+        let val = bus.load::<u8>(addr) as i8;
+
+        let load = LoadDelay::new(rt, val as u32);
+        self.chain_pending_load(load);
     }
 
-    let i = inst.imm_se();
-    let rt = inst.rt();
-    let rs = inst.rs();
+    /// Load byte unsigned
+    // lbu rt,imm(rs)
+    // rt = [imm + rs]
+    fn op_lbu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LB");
 
-    let offset = psx.cpu.reg(rs);
-    let addr = offset.wrapping_add(i);
-    let val = psx.cpu.reg(rt) as u16;
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
 
-    //psx.cpu.handle_pending_load();
-    psx.store(addr, val);
-}
+        let base = inst.imm_se();
 
-/// Store byte
-// rt,imm(rs)
-// [imm+rs]=(rt & 0xff)
-fn op_sb(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SB");
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-    if psx.cpu.cop.status().is_isolate_cache() {
-        tracing::warn!("ignoring store while cache is isolated");
-        return;
+        let offset = self.reg(rs);
+        let addr = base.wrapping_add(offset);
+
+        let val = bus.load::<u8>(addr);
+
+        let load = LoadDelay::new(rt, val as u32);
+        self.chain_pending_load(load);
     }
 
-    let i = inst.imm_se();
-    let rt = inst.rt();
-    let rs = inst.rs();
+    /// Store word
+    // sw rt,imm(rs)
+    // [imm + rs] = rt
+    fn op_sw(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SW");
 
-    let offset = psx.cpu.reg(rs);
-    let addr = offset.wrapping_add(i);
-    let val = psx.cpu.reg(rt) as u8;
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring store while cache is isolated");
+            return;
+        }
 
-    //psx.cpu.handle_pending_load();
-    psx.store(addr, val);
-}
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-/// Shift left tracingical
-// sll rd,rt,imm
-// rd = rt << (0x00..0x1f)
-fn op_sll(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SLL");
-    let i = inst.shamt();
-    let rt = inst.rt();
-    let rd = inst.rd();
+        let offset = self.reg(rs);
+        let addr = offset.wrapping_add(i);
+        let val = self.reg(rt);
 
-    let t = psx.cpu.reg(rt);
-    let val = t << i;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Shift right tracingical
-// sll rd,rt,imm
-// rd = rt >> (0x00..0x1f)
-fn op_srl(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SLL");
-    let i = inst.shamt();
-    let rt = inst.rt();
-    let rd = inst.rd();
-
-    let t = psx.cpu.reg(rt);
-    let val = t >> i;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Shift right arithmetic
-// sra rd,rt,imm
-// rd = rt >> (0x00..0x1f)
-fn op_sra(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SRA");
-    let i = inst.shamt();
-    let rt = inst.rt();
-    let rd = inst.rd();
-
-    let t = psx.cpu.reg(rt) as i32;
-    let val = (t >> i) as u32;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Add
-// add rd,rs,rt
-// rd = rs + rt (with overflow trap)
-fn op_add(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec ADD");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-
-    let val = s.checked_add(t)
-        .expect(&format!("ADD: Overflow ({s} + {t})"));
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Add unsigned
-// addu rd,rs,rt
-// rd = rs + rt
-fn op_addu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec ADDU");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-    let val = s.wrapping_add(t);
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Add immediate
-// addi rt,rs,imm
-// rt = rs + (-0x8000..+0x7fff) (with overflow trap)
-//
-// From Flandrin's Emulation Guide:
-//  The cast to i32 is important because something like 0x4 + 0xffffffff is
-//  an overflow in 32bit unsigned arithmetics. If the operands are signed however
-//  it’s simply 4 + -1 and that’s obviously perfectly fine. The actual result of
-//  the operation would be the same (0x00000003) but since ADDI generates an
-//  exception on overflow the difference in behaviour is critical.
-fn op_addi(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec ADDI");
-    let i = inst.imm_se() as i32;
-    let rt = inst.rt();
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs) as i32;
-
-    let val = s.checked_add(i)
-        .expect(&format!("ADDI: Overflow ({s} + {i})"));
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val as u32);
-}
-
-/// Add immediate unsigned
-// addiu rt,rs,imm
-// rt = rs + (-0x8000..+0x7fff)
-fn op_addiu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec ADDIU");
-    let i = inst.imm_se();
-    let rt = inst.rt();
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs);
-    let val = s.wrapping_add(i);
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val);
-}
-
-/// Sub
-// sub rd,rs,rt
-// rd = rs + rt (with overflow trap)
-fn op_sub(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SUB");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-
-    let val = s.checked_sub(t)
-        .expect(&format!("SUB: Overflow ({s} + {t})"));
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Sub unsigned
-// subu rd,rs,rt
-// rd = rs + rt
-fn op_subu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SUBU");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-    let val = s.wrapping_sub(t);
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Divide
-// div rs,rt
-// lo = rs / rt, hi = rs % rt
-fn op_div(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec DIV");
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let num = psx.cpu.reg(rs) as i32;
-    let denom = psx.cpu.reg(rt) as i32;
-
-    match (num, denom) {
-        (n, 0) if n >= 0 => { // Special case: Divide by zero (positive)
-            psx.cpu.lo = -1i32 as u32;
-            psx.cpu.hi = n as u32;
-        },
-        (n, 0) if n < 0 => { // Special case: Divide by zero (negative)
-            psx.cpu.lo = 1 as u32;
-            psx.cpu.hi = n as u32;
-        },
-        (i32::MIN, -1) => { // Special case: i32::MIN / -1 cannot fit in i32. 
-            psx.cpu.lo = i32::MIN as u32;
-            psx.cpu.hi = 0;
-        },
-        (n, d) => {
-            psx.cpu.lo = (n / d) as u32;
-            psx.cpu.hi = (n % d) as u32;
-        },
+        //self.handle_pending_load();
+        bus.store(addr, val);
     }
 
-    //psx.cpu.handle_pending_load();
+    /// Store halfword
+    //  rt,imm(rs)
+    //  [imm+rs]=(rt & 0xffff)
+    fn op_sh(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SH");
 
-    //TODO: Implement stalling
-}
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring store while cache is isolated");
+            return;
+        }
 
-/// Divide unsigned
-// divu rs,rt
-// lo = rs / rt, hi = rs % rt
-fn op_divu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec DIV");
-    let rs = inst.rs();
-    let rt = inst.rt();
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-    let num = psx.cpu.reg(rs);
-    let denom = psx.cpu.reg(rt);
+        let offset = self.reg(rs);
+        let addr = offset.wrapping_add(i);
+        let val = self.reg(rt) as u16;
 
-    match (num, denom) {
-        (n, 0) => { // Special case: Divide by zero
-            psx.cpu.lo = -1i32 as u32;
-            psx.cpu.hi = n;
-        },
-        (n, d) => {
-            psx.cpu.lo = n / d;
-            psx.cpu.hi = n % d;
-        },
+        //self.handle_pending_load();
+        bus.store(addr, val);
     }
 
-    //psx.cpu.handle_pending_load();
+    /// Store byte
+    // rt,imm(rs)
+    // [imm+rs]=(rt & 0xff)
+    fn op_sb(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SB");
 
-    //TODO: Implement stalling
-}
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring store while cache is isolated");
+            return;
+        }
 
-/// Move from LO
-// mflo rd
-// rd = lo
-fn op_mflo(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec MFLO");
-    let rd = inst.rd();
-    let lo = psx.cpu.lo;
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-    psx.cpu.set_reg(rd, lo);
+        let offset = self.reg(rs);
+        let addr = offset.wrapping_add(i);
+        let val = self.reg(rt) as u8;
 
-    //psx.cpu.handle_pending_load();
-
-    //TODO: Implement stalling
-}
-
-/// Move to LO
-// mtlo rs
-// lo = rs
-fn op_mtlo(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec MTLO");
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs);
-    psx.cpu.lo = s;
-
-    //psx.cpu.handle_pending_load();
-
-    //TODO: Implement stalling
-}
-
-/// Move from HI
-// mfhi rd
-// rd = lo
-fn op_mfhi(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec MFLO");
-    let rd = inst.rd();
-    let hi = psx.cpu.hi;
-
-    psx.cpu.set_reg(rd, hi);
-
-    //psx.cpu.handle_pending_load();
-
-    //TODO: Implement stalling
-}
-
-/// Move to HI
-// mthi rs
-// hi = rs
-fn op_mthi(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec MTHI");
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs);
-    psx.cpu.hi = s;
-
-    //psx.cpu.handle_pending_hiad();
-
-    //TODO: Implement stalling
-}
-
-/// Jump
-// j addr
-// pc = (pc & 0xf000_0000) + (addr * 4)
-fn op_j(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec J");
-    let addr = inst.addr();
-
-    psx.cpu.next_pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.pending_branch = true;
-}
-
-/// Jump and link
-// jal addr
-// pc = (pc & 0xf000_0000) + (addr * 4); ra = $ + 8
-fn op_jal(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec JAL");
-    let addr = inst.addr();
-
-    let return_addr = psx.cpu.next_pc;
-    psx.cpu.next_pc = (psx.cpu.pc & 0xf000_0000) | (addr << 2);
-
-    //psx.cpu.handle_pending_load();
-
-    psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
-
-    psx.cpu.pending_branch = true;
-}
-
-/// Jump to register
-// jr rs
-// pc = rs
-fn op_jr(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec JR");
-    let rs = inst.rs();
-    let addr = psx.cpu.reg(rs);
-
-    psx.cpu.next_pc = addr;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.pending_branch = true;
-}
-
-/// Jump to register and link
-// (rd,)rs(,rd)
-fn op_jalr(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec JALR");
-    let rs = inst.rs();
-    let rd = inst.rd();
-
-    let return_addr = psx.cpu.next_pc;
-    let jump_addr = psx.cpu.reg(rs);
-
-    psx.cpu.next_pc = jump_addr; 
-
-    //psx.cpu.handle_pending_load();
-
-    psx.cpu.set_reg(rd, return_addr);
-
-    psx.cpu.pending_branch = true;
-}
-
-/// Branch if equal
-// beq rs,rt,dest
-// if rs = rt, then pc = $ + 4 + (-0x8000 + 0x7fff) * 4
-fn op_beq(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec BEQ");
-    let i = inst.imm_se();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-
-    if s == t {
-        psx.cpu.branch(i);
+        //self.handle_pending_load();
+        bus.store(addr, val);
     }
 
-    //psx.cpu.handle_pending_load();
-    psx.cpu.pending_branch = true;
-}
+    /// Shift left tracingical
+    // sll rd,rt,imm
+    // rd = rt << (0x00..0x1f)
+    fn op_sll(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLL");
+        let i = inst.shamt();
+        let rt = inst.rt();
+        let rd = inst.rd();
 
-/// Branch if not equal
-// bne rs,rt,addr
-// if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
-fn op_bne(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec BNE");
-    let i = inst.imm_se();
-    let rs = inst.rs();
-    let rt = inst.rt();
+        let t = self.reg(rt);
+        let val = t << i;
 
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-
-    if s != t {
-        psx.cpu.branch(i);
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
     }
 
-    //psx.cpu.handle_pending_load();
-    psx.cpu.pending_branch = true;
-}
+    /// Shift right tracingical
+    // sll rd,rt,imm
+    // rd = rt >> (0x00..0x1f)
+    fn op_srl(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLL");
+        let i = inst.shamt();
+        let rt = inst.rt();
+        let rd = inst.rd();
 
-/// Branch (condition) zero
-/// This opcode can be bltz, bgez, bltzal, or bgezal
-fn op_bcondz(psx: &mut Psx, inst: Instruction) {
-    enum BranchCondition {
-        LessThan,
-        GreaterEqual,
+        let t = self.reg(rt);
+        let val = t >> i;
+
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
     }
 
-    tracing::trace!("exec BcondZ");
+    /// Shift right arithmetic
+    // sra rd,rt,imm
+    // rd = rt >> (0x00..0x1f)
+    fn op_sra(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SRA");
+        let i = inst.shamt();
+        let rt = inst.rt();
+        let rd = inst.rd();
 
-    let i = inst.imm_se();
-    let rs = inst.rs();
+        let t = self.reg(rt) as i32;
+        let val = (t >> i) as u32;
 
-    let s = psx.cpu.reg(rs) as i32;
-
-    let discriminant = (inst.inner() >> 16) & 0x1f;
-    let should_link = discriminant & 0x1e == 0x80;
-
-    if should_link {
-        let return_addr = psx.cpu.pc;
-        psx.cpu.set_reg(RegisterIndex::RETURN, return_addr);
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
     }
 
-    if discriminant & 1 == 0 && s < 0
-    || discriminant & 1 == 1 && s >= 0 {
-        psx.cpu.branch(i);
+    /// Add
+    // add rd,rs,rt
+    // rd = rs + rt (with overflow trap)
+    fn op_add(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec ADD");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+
+        let val = s.checked_add(t)
+            .expect(&format!("ADD: Overflow ({s} + {t})"));
+
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
     }
 
-    //psx.cpu.handle_pending_load();
-    psx.cpu.pending_branch = true;
-}
+    /// Add unsigned
+    // addu rd,rs,rt
+    // rd = rs + rt
+    fn op_addu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec ADDU");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
 
-/// Branch if greater than zero
-// bgtz rs,dest
-// if rs > 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
-fn op_bgtz(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec BGTZ");
-    let i = inst.imm_se();
-    let rs = inst.rs();
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+        let val = s.wrapping_add(t);
 
-    let s = psx.cpu.reg(rs) as i32;
-
-    if s > 0 {
-        psx.cpu.branch(i);
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
     }
 
-    //psx.cpu.handle_pending_load();
-}
+    /// Add immediate
+    // addi rt,rs,imm
+    // rt = rs + (-0x8000..+0x7fff) (with overflow trap)
+    //
+    // From Flandrin's Emulation Guide:
+    //  The cast to i32 is important because something like 0x4 + 0xffffffff is
+    //  an overflow in 32bit unsigned arithmetics. If the operands are signed however
+    //  it’s simply 4 + -1 and that’s obviously perfectly fine. The actual result of
+    //  the operation would be the same (0x00000003) but since ADDI generates an
+    //  exception on overflow the difference in behaviour is critical.
+    fn op_addi(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec ADDI");
+        let i = inst.imm_se() as i32;
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-/// Branch if less than or equal to zero
-// blez rs,dest
-// if rs <= 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
-fn op_blez(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec BGTZ");
-    let i = inst.imm_se();
-    let rs = inst.rs();
+        let s = self.reg(rs) as i32;
 
-    let s = psx.cpu.reg(rs) as i32;
+        let val = s.checked_add(i)
+            .expect(&format!("ADDI: Overflow ({s} + {i})"));
 
-    if s <= 0 {
-        psx.cpu.branch(i);
+        //self.handle_pending_load();
+        self.set_reg(rt, val as u32);
     }
 
-    //psx.cpu.handle_pending_load();
-}
+    /// Add immediate unsigned
+    // addiu rt,rs,imm
+    // rt = rs + (-0x8000..+0x7fff)
+    fn op_addiu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec ADDIU");
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
 
-/// Set on less than
-// stlu rd,rs,rt
-// if rs < rt (signed comparison) then rd=1 else rd=0
-fn op_slt(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SLT");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
+        let s = self.reg(rs);
+        let val = s.wrapping_add(i);
 
-    let s = psx.cpu.reg(rs) as i32;
-    let t = psx.cpu.reg(rt) as i32;
-    let flag = (s < t) as u32;
-
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, flag);
-}
-
-/// Set on less than, unsigned
-// stlu rd,rs,rt
-// if rs < rt (unsigned comparison) then rd=1 else rd=0
-fn op_sltu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SLTU");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-    let flag = (s < t) as u32;
-
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, flag);
-}
-
-/// Set on less than immediate
-// slti rt,rs,imm
-// if rs < imm (sign-extended immediate) (signed comparison) then rt=1, else rt=0
-fn op_slti(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SLTI");
-    let i = inst.imm_se() as i32;
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs) as i32;
-    let flag = (s < i) as u32;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, flag);
-}
-
-/// Set on less than immediate, unsigned
-// sltiu rt,rs,imm
-// if rs < imm (sign-extended immediate) (unsigned comparison) then rt=1, else rt=0
-fn op_sltiu(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec SLTIU");
-    let i = inst.imm_se();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let flag = (s < i) as u32;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, flag);
-}
-
-
-/// Bitwise OR
-// or rd,rs,rt
-// rd = rs OR rt
-fn op_or(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec OR");
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-
-    let val = s | t;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, val);
-}
-
-/// Bitwise OR (immediate)
-// ori rs,rt,imm
-// rt = rs | (0x0000..0xffff)
-fn op_ori(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec ORI");
-    let i = inst.imm();
-    let rt = inst.rt();
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs);
-    let val = s | i;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, val);
-}
-
-/// Bitwise AND
-// and rd,rs,rt
-// rd = rs & rt
-fn op_and(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec AND");
-
-    let rd = inst.rd();
-    let rs = inst.rs();
-    let rt = inst.rt();
-
-    let s = psx.cpu.reg(rs);
-    let t = psx.cpu.reg(rt);
-    let d = s & t;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rd, d);
-}
-
-/// Bitwise AND immediate
-// andi rt,rs,imm
-// rt = rs & imm
-fn op_andi(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec ANDI");
-    
-    let i = inst.imm();
-    let rt = inst.rt();
-    let rs = inst.rs();
-
-    let s = psx.cpu.reg(rs); 
-    let t = s & i;
-
-    //psx.cpu.handle_pending_load();
-    psx.cpu.set_reg(rt, t);
-}
-
-fn op_syscall(psx: &mut Psx, _inst: Instruction) {
-    //crate::set_log_level(tracing_subscriber::filter::LevelFilter::TRACE);
-    tracing::trace!("exec SYSCALL");
-    //crate::set_kill_count(psx.instruction_cnt + 100);
-
-    psx.cpu.exception(Exception::Syscall);
-}
-
-/* === Coprocessor logic === */
-
-/// Invoke coprocessor 0
-// cop0 cop_op
-// exec cop0 command 0x0..0x1ff_ffff
-fn op_cop0(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("exec COP0");
-    match inst.cop_op() {
-        0x00 => op_mfc0(psx, inst),
-        0x04 => op_mtc0(psx, inst),
-        0x10 => op_rfe(psx, inst),
-        _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{inst:08x})"),
+        //self.handle_pending_load();
+        self.set_reg(rt, val);
     }
-}
 
-/// Move from coprocessor 0
-// mfc0 rt,rd
-// rt = cop#_(data_reg)
-fn op_mfc0(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("delegate MFC0");
-    let cpu_rt = inst.rt();
-    let cop_r = inst.rd();
+    /// Sub
+    // sub rd,rs,rt
+    // rd = rs + rt (with overflow trap)
+    fn op_sub(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SUB");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
 
-    let val = cop::mfc0(psx, cop_r);
+        let s = self.reg(rs);
+        let t = self.reg(rt);
 
-    let load = LoadDelay::new(cpu_rt, val);
-    psx.cpu.chain_pending_load(load)
-}
+        let val = s.checked_sub(t)
+            .expect(&format!("SUB: Overflow ({s} + {t})"));
 
-/// Move to coprocessor 0
-// mtc0 rt,rd
-// cop#_(data_reg) = rt
-fn op_mtc0(psx: &mut Psx, inst: Instruction) { 
-    tracing::trace!("delegate MTC0");
-    let cpu_rt = inst.rt();
-    let cop_r = inst.rd();
-
-    let val = psx.cpu.reg(cpu_rt);
-
-    //psx.cpu.handle_pending_load();
-    cop::mtc0(psx, cop_r, val);
-}
-
-fn op_rfe(psx: &mut Psx, inst: Instruction) {
-    tracing::trace!("delegate RFE");
-    if inst.inner() & 0x3f != 0b01_0000 {
-        panic!("Unsupported cop0 instruction: {inst:08x}");
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
     }
-    psx.cpu.cop.pop_mode();
+
+    /// Sub unsigned
+    // subu rd,rs,rt
+    // rd = rs + rt
+    fn op_subu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SUBU");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+        let val = s.wrapping_sub(t);
+
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
+    }
+
+    /// Divide
+    // div rs,rt
+    // lo = rs / rt, hi = rs % rt
+    fn op_div(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec DIV");
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let num = self.reg(rs) as i32;
+        let denom = self.reg(rt) as i32;
+
+        match (num, denom) {
+            (n, 0) if n >= 0 => { // Special case: Divide by zero (positive)
+                self.lo = -1i32 as u32;
+                self.hi = n as u32;
+            },
+            (n, 0) if n < 0 => { // Special case: Divide by zero (negative)
+                self.lo = 1 as u32;
+                self.hi = n as u32;
+            },
+            (i32::MIN, -1) => { // Special case: i32::MIN / -1 cannot fit in i32. 
+                self.lo = i32::MIN as u32;
+                self.hi = 0;
+            },
+            (n, d) => {
+                self.lo = (n / d) as u32;
+                self.hi = (n % d) as u32;
+            },
+        }
+
+        //self.handle_pending_load();
+
+        //TODO: Implement stalling
+    }
+
+    /// Divide unsigned
+    // divu rs,rt
+    // lo = rs / rt, hi = rs % rt
+    fn op_divu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec DIV");
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let num = self.reg(rs);
+        let denom = self.reg(rt);
+
+        match (num, denom) {
+            (n, 0) => { // Special case: Divide by zero
+                self.lo = -1i32 as u32;
+                self.hi = n;
+            },
+            (n, d) => {
+                self.lo = n / d;
+                self.hi = n % d;
+            },
+        }
+
+        //self.handle_pending_load();
+
+        //TODO: Implement stalling
+    }
+
+    /// Move from LO
+    // mflo rd
+    // rd = lo
+    fn op_mflo(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec MFLO");
+        let rd = inst.rd();
+        let lo = self.lo;
+
+        self.set_reg(rd, lo);
+
+        //self.handle_pending_load();
+
+        //TODO: Implement stalling
+    }
+
+    /// Move to LO
+    // mtlo rs
+    // lo = rs
+    fn op_mtlo(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec MTLO");
+        let rs = inst.rs();
+
+        let s = self.reg(rs);
+        self.lo = s;
+
+        //self.handle_pending_load();
+
+        //TODO: Implement stalling
+    }
+
+    /// Move from HI
+    // mfhi rd
+    // rd = lo
+    fn op_mfhi(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec MFLO");
+        let rd = inst.rd();
+        let hi = self.hi;
+
+        self.set_reg(rd, hi);
+
+        //self.handle_pending_load();
+
+        //TODO: Implement stalling
+    }
+
+    /// Move to HI
+    // mthi rs
+    // hi = rs
+    fn op_mthi(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec MTHI");
+        let rs = inst.rs();
+
+        let s = self.reg(rs);
+        self.hi = s;
+
+        //self.handle_pending_hiad();
+
+        //TODO: Implement stalling
+    }
+
+    /// Jump
+    // j addr
+    // pc = (pc & 0xf000_0000) + (addr * 4)
+    fn op_j(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec J");
+        let addr = inst.addr();
+
+        self.next_pc = (self.pc & 0xf000_0000) | (addr << 2);
+
+        //self.handle_pending_load();
+        self.pending_branch = true;
+    }
+
+    /// Jump and link
+    // jal addr
+    // pc = (pc & 0xf000_0000) + (addr * 4); ra = $ + 8
+    fn op_jal(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec JAL");
+        let addr = inst.addr();
+
+        let return_addr = self.next_pc;
+        self.next_pc = (self.pc & 0xf000_0000) | (addr << 2);
+
+        //self.handle_pending_load();
+
+        self.set_reg(RegisterIndex::RETURN, return_addr);
+
+        self.pending_branch = true;
+    }
+
+    /// Jump to register
+    // jr rs
+    // pc = rs
+    fn op_jr(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec JR");
+        let rs = inst.rs();
+        let addr = self.reg(rs);
+
+        self.next_pc = addr;
+
+        //self.handle_pending_load();
+        self.pending_branch = true;
+    }
+
+    /// Jump to register and link
+    // (rd,)rs(,rd)
+    fn op_jalr(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec JALR");
+        let rs = inst.rs();
+        let rd = inst.rd();
+
+        let return_addr = self.next_pc;
+        let jump_addr = self.reg(rs);
+
+        self.next_pc = jump_addr; 
+
+        //self.handle_pending_load();
+
+        self.set_reg(rd, return_addr);
+
+        self.pending_branch = true;
+    }
+
+    /// Branch if equal
+    // beq rs,rt,dest
+    // if rs = rt, then pc = $ + 4 + (-0x8000 + 0x7fff) * 4
+    fn op_beq(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec BEQ");
+        let i = inst.imm_se();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+
+        if s == t {
+            self.branch(i);
+        }
+
+        //self.handle_pending_load();
+        self.pending_branch = true;
+    }
+
+    /// Branch if not equal
+    // bne rs,rt,addr
+    // if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+    fn op_bne(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec BNE");
+        let i = inst.imm_se();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+
+        if s != t {
+            self.branch(i);
+        }
+
+        //self.handle_pending_load();
+        self.pending_branch = true;
+    }
+
+    /// Branch (condition) zero
+    /// This opcode can be bltz, bgez, bltzal, or bgezal
+    fn op_bcondz(&mut self, bus: &mut Bus, inst: Instruction) {
+        enum BranchCondition {
+            LessThan,
+            GreaterEqual,
+        }
+
+        tracing::trace!("exec BcondZ");
+
+        let i = inst.imm_se();
+        let rs = inst.rs();
+
+        let s = self.reg(rs) as i32;
+
+        let discriminant = (inst.inner() >> 16) & 0x1f;
+        let should_link = discriminant & 0x1e == 0x80;
+
+        if should_link {
+            let return_addr = self.pc;
+            self.set_reg(RegisterIndex::RETURN, return_addr);
+        }
+
+        if discriminant & 1 == 0 && s < 0
+        || discriminant & 1 == 1 && s >= 0 {
+            self.branch(i);
+        }
+
+        //self.handle_pending_load();
+        self.pending_branch = true;
+    }
+
+    /// Branch if greater than zero
+    // bgtz rs,dest
+    // if rs > 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+    fn op_bgtz(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec BGTZ");
+        let i = inst.imm_se();
+        let rs = inst.rs();
+
+        let s = self.reg(rs) as i32;
+
+        if s > 0 {
+            self.branch(i);
+        }
+
+        //self.handle_pending_load();
+    }
+
+    /// Branch if less than or equal to zero
+    // blez rs,dest
+    // if rs <= 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
+    fn op_blez(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec BGTZ");
+        let i = inst.imm_se();
+        let rs = inst.rs();
+
+        let s = self.reg(rs) as i32;
+
+        if s <= 0 {
+            self.branch(i);
+        }
+
+        //self.handle_pending_load();
+    }
+
+    /// Set on less than
+    // stlu rd,rs,rt
+    // if rs < rt (signed comparison) then rd=1 else rd=0
+    fn op_slt(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLT");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs) as i32;
+        let t = self.reg(rt) as i32;
+        let flag = (s < t) as u32;
+
+
+        //self.handle_pending_load();
+        self.set_reg(rd, flag);
+    }
+
+    /// Set on less than, unsigned
+    // stlu rd,rs,rt
+    // if rs < rt (unsigned comparison) then rd=1 else rd=0
+    fn op_sltu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLTU");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+        let flag = (s < t) as u32;
+
+
+        //self.handle_pending_load();
+        self.set_reg(rd, flag);
+    }
+
+    /// Set on less than immediate
+    // slti rt,rs,imm
+    // if rs < imm (sign-extended immediate) (signed comparison) then rt=1, else rt=0
+    fn op_slti(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLTI");
+        let i = inst.imm_se() as i32;
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs) as i32;
+        let flag = (s < i) as u32;
+
+        //self.handle_pending_load();
+        self.set_reg(rt, flag);
+    }
+
+    /// Set on less than immediate, unsigned
+    // sltiu rt,rs,imm
+    // if rs < imm (sign-extended immediate) (unsigned comparison) then rt=1, else rt=0
+    fn op_sltiu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLTIU");
+        let i = inst.imm_se();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let flag = (s < i) as u32;
+
+        //self.handle_pending_load();
+        self.set_reg(rt, flag);
+    }
+
+
+    /// Bitwise OR
+    // or rd,rs,rt
+    // rd = rs OR rt
+    fn op_or(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec OR");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+
+        let val = s | t;
+
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
+    }
+
+    /// Bitwise OR (immediate)
+    // ori rs,rt,imm
+    // rt = rs | (0x0000..0xffff)
+    fn op_ori(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec ORI");
+        let i = inst.imm();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let s = self.reg(rs);
+        let val = s | i;
+
+        //self.handle_pending_load();
+        self.set_reg(rt, val);
+    }
+
+    /// Bitwise AND
+    // and rd,rs,rt
+    // rd = rs & rt
+    fn op_and(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec AND");
+
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+        let d = s & t;
+
+        //self.handle_pending_load();
+        self.set_reg(rd, d);
+    }
+
+    /// Bitwise AND immediate
+    // andi rt,rs,imm
+    // rt = rs & imm
+    fn op_andi(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec ANDI");
+        
+        let i = inst.imm();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let s = self.reg(rs); 
+        let t = s & i;
+
+        //self.handle_pending_load();
+        self.set_reg(rt, t);
+    }
+
+    fn op_syscall(&mut self, bus: &mut Bus, _inst: Instruction) {
+        //crate::set_log_level(tracing_subscriber::filter::LevelFilter::TRACE);
+        tracing::trace!("exec SYSCALL");
+        //crate::set_kill_count(psx.instruction_cnt + 100);
+
+        self.exception(Exception::Syscall);
+    }
+
+    /* === Coprocessor logic === */
+
+    /// Invoke coprocessor 0
+    // cop0 cop_op
+    // exec cop0 command 0x0..0x1ff_ffff
+    fn op_cop0(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec COP0");
+        match inst.cop_op() {
+            0x00 => self.op_mfc0(bus, inst),
+            0x04 => self.op_mtc0(bus, inst),
+            0x10 => self.op_rfe(bus, inst),
+            _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{inst:08x})"),
+        }
+    }
+
+    /// Move from coprocessor 0
+    // mfc0 rt,rd
+    // rt = cop#_(data_reg)
+    fn op_mfc0(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("delegate MFC0");
+        let cpu_rt = inst.rt();
+        let cop_r = inst.rd();
+
+        let val = self.cop.mfc0(bus, cop_r);
+
+        let load = LoadDelay::new(cpu_rt, val);
+        self.chain_pending_load(load)
+    }
+
+    /// Move to coprocessor 0
+    // mtc0 rt,rd
+    // cop#_(data_reg) = rt
+    fn op_mtc0(&mut self, bus: &mut Bus, inst: Instruction) { 
+        tracing::trace!("delegate MTC0");
+        let cpu_rt = inst.rt();
+        let cop_r = inst.rd();
+
+        let val = self.reg(cpu_rt);
+
+        //self.handle_pending_load();
+        self.cop.mtc0(bus, cop_r, val);
+    }
+
+    fn op_rfe(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("delegate RFE");
+        if inst.inner() & 0x3f != 0b01_0000 {
+            panic!("Unsupported cop0 instruction: {inst:08x}");
+        }
+        self.cop.pop_mode();
+    }
 }

@@ -5,7 +5,8 @@ use crate::emu::{
     cpu::{
         instruction::RegisterIndex,
         exception::{Exception, ExceptionVector},
-    }
+    },
+    Bus,
 };
 
 #[derive(Default, Debug)]
@@ -54,44 +55,46 @@ impl Cop0 {
         self.cause &= !0x7c;
         self.cause |= (cause as u32) << 2;
     }
-}
 
-/// COP0 internal implementation of MTC0: Move to coprocessor 0
-pub fn mtc0(psx: &mut Psx, cop_r: RegisterIndex, val: u32) {
-    tracing::trace!("cop0 exec MTC0");
-    match cop_r.into() {
-        3 | 5 | 6 | 7 | 9 | 11 => {
-            if val != 0 {
-                panic!("unhandled write to cop0_r")
+    /// COP0 internal implementation of MTC0: Move to coprocessor 0
+    pub fn mtc0(&mut self, bus: &mut Bus, cop_r: RegisterIndex, val: u32) {
+        tracing::trace!("cop0 exec MTC0");
+        match cop_r.into() {
+            3 | 5 | 6 | 7 | 9 | 11 => {
+                if val != 0 {
+                    panic!("unhandled write to cop0_r")
+                }
             }
-        }
-        12 => {
-            psx.cpu.cop.sr = val;
-        },
-        13 => {
-            if val != 0 {
-                panic!("unhandled write to CAUSE register");
+            12 => {
+                self.sr = val;
+            },
+            13 => {
+                if val != 0 {
+                    panic!("unhandled write to CAUSE register");
+                }
+            },
+            14 => {
+                if val != 0 {
+                    panic!("unhandled write to EPC register")
+                }
             }
-        },
-        14 => {
-            if val != 0 {
-                panic!("unhandled write to EPC register")
-            }
-        }
-        _else => panic!("unhandled write to cop0 register {_else}"),
-    } 
-}
+            _else => panic!("unhandled write to cop0 register {_else}"),
+        } 
+    }
 
-/// COP0 internal implementation of MFC0: Move from coprocessor 0
-pub fn mfc0(psx: &mut Psx, cop_r: RegisterIndex) -> u32 {
-    tracing::trace!("cop0 exec MFC0");
-    match cop_r.into() {
-        12 => psx.cpu.cop.sr,
-        13 => psx.cpu.cop.cause,
-        14 => psx.cpu.cop.epc,
-        _else => panic!("Unhandled read from cop0 register {_else}")
+    /// COP0 internal implementation of MFC0: Move from coprocessor 0
+    pub fn mfc0(&mut self, bus: &mut Bus, cop_r: RegisterIndex) -> u32 {
+        tracing::trace!("cop0 exec MFC0");
+        match cop_r.into() {
+            12 => self.sr,
+            13 => self.cause,
+            14 => self.epc,
+            _else => panic!("Unhandled read from cop0 register {_else}")
+        }
     }
 }
+
+
 
 pub struct ProcessorStatus(u32);
 
