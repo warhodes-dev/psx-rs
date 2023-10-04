@@ -37,6 +37,8 @@ impl Context {
             psx: Box::new(psx),
             //sdl: None, //Some(sdl)
         })
+
+        // add another comment
     }
 
     pub fn run(&mut self) -> Result<()> {

@@ -164,7 +164,7 @@ impl LoadDelay {
 }
 
 impl Cpu {
-    pub fn handle_next_instruction(&mut self, bus: &mut Bus) -> Result<()> {
+    pub fn handle_next_instruction(&mut self, bus: &mut Bus) {
         let inst_addr = self.pc;
         let inst = Instruction(bus.load(inst_addr));
 
@@ -176,14 +176,12 @@ impl Cpu {
         self.branch_delay_slot = self.pending_branch;
         self.pending_branch = false;
 
-        self.dispatch_instruction(bus, inst)?;
+        self.dispatch_instruction(bus, inst);
 
         self.regs = self.out_regs;
-
-        Ok(())
     }
 
-    pub fn dispatch_instruction(&mut self, bus: &mut Bus, inst: Instruction) -> Result<()> {
+    pub fn dispatch_instruction(&mut self, bus: &mut Bus, inst: Instruction) {
         // Primary opcode
         match inst.opcode() {
             0x01 => self.op_bcondz(bus, inst),
@@ -229,11 +227,10 @@ impl Cpu {
                 0x25 => self.op_or(bus, inst),
                 0x2A => self.op_slt(bus, inst),
                 0x2B => self.op_sltu(bus, inst),
-                _else => return Err(anyhow!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
+                _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             },
-            _else => return Err(anyhow!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0)),
+            _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
         };
-        Ok(())
     }
 
     /* ========= Opcodes ========= */
