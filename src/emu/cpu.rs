@@ -138,7 +138,6 @@ impl Cpu {
     }
 
     fn increment_pc(&mut self) {
-        self.current_pc = self.pc;
         self.pc = self.next_pc;
         self.next_pc = self.next_pc.wrapping_add(4);
     }
@@ -165,6 +164,15 @@ impl LoadDelay {
 
 impl Cpu {
     pub fn handle_next_instruction(&mut self, bus: &mut Bus) {
+
+        // Track instruction address in case of exception
+        self.current_pc = self.pc;
+
+        if self.current_pc % 4 != 0 {
+            self.exception(Exception::LoadAlignmentError);
+            return;
+        }
+
         let inst_addr = self.pc;
         let inst = Instruction(bus.load(inst_addr));
 
@@ -269,10 +277,13 @@ impl Cpu {
         let offset = self.reg(rs);
         let addr = base.wrapping_add(offset);
 
-        let val = bus.load(addr);
-
-        let load = LoadDelay::new(rt, val);
-        self.chain_pending_load(load);
+        if addr % 4 != 0 {
+            self.exception(Exception::LoadAlignmentError)
+        } else {
+            let val = bus.load(addr);
+            let load = LoadDelay::new(rt, val);
+            self.chain_pending_load(load);
+        }
     }
 
     /// Load halfword
@@ -294,11 +305,14 @@ impl Cpu {
         let offset = self.reg(rs);
         let addr = base.wrapping_add(offset);
 
-        // Cast as i16 to force sign extension
-        let val = bus.load::<u16>(addr) as i16;
-
-        let load = LoadDelay::new(rt, val as u32);
-        self.chain_pending_load(load);
+        if addr % 2 != 0 {
+            self.exception(Exception::LoadAlignmentError)
+        } else {
+            // Cast as i16 to force sign extension
+            let val = bus.load::<u16>(addr) as i16;
+            let load = LoadDelay::new(rt, val as u32);
+            self.chain_pending_load(load);
+        }
     }
 
     /// Load byte 
@@ -369,10 +383,13 @@ impl Cpu {
 
         let offset = self.reg(rs);
         let addr = offset.wrapping_add(i);
-        let val = self.reg(rt);
 
-        //self.handle_pending_load();
-        bus.store(addr, val);
+        if addr % 4 != 0 {
+            self.exception(Exception::StoreAlignmentError)
+        } else {
+            let val = self.reg(rt);
+            bus.store(addr, val);
+        }
     }
 
     /// Store halfword
@@ -392,10 +409,13 @@ impl Cpu {
 
         let offset = self.reg(rs);
         let addr = offset.wrapping_add(i);
-        let val = self.reg(rt) as u16;
 
-        //self.handle_pending_load();
-        bus.store(addr, val);
+        if addr % 2 != 0 {
+            self.exception(Exception::StoreAlignmentError)
+        } else {
+            let val = self.reg(rt) as u16;
+            bus.store(addr, val);
+        }
     }
 
     /// Store byte
@@ -481,11 +501,11 @@ impl Cpu {
         let s = self.reg(rs);
         let t = self.reg(rt);
 
-        let val = s.checked_add(t)
-            .expect(&format!("ADD: Overflow ({s} + {t})"));
-
-        //self.handle_pending_load();
-        self.set_reg(rd, val);
+        if let Some(val) = s.checked_add(t) {
+            self.set_reg(rd, val);
+        } else {
+            self.exception(Exception::Overflow);
+        }
     }
 
     /// Add unsigned
@@ -501,7 +521,6 @@ impl Cpu {
         let t = self.reg(rt);
         let val = s.wrapping_add(t);
 
-        //self.handle_pending_load();
         self.set_reg(rd, val);
     }
 
@@ -523,11 +542,11 @@ impl Cpu {
 
         let s = self.reg(rs) as i32;
 
-        let val = s.checked_add(i)
-            .expect(&format!("ADDI: Overflow ({s} + {i})"));
-
-        //self.handle_pending_load();
-        self.set_reg(rt, val as u32);
+        if let Some(val) = s.checked_add(i) {
+            self.set_reg(rt, val as u32);
+        } else {
+            self.exception(Exception::Overflow);
+        }
     }
 
     /// Add immediate unsigned

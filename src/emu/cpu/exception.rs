@@ -1,6 +1,9 @@
 pub enum Exception {
     Interrupt = 0,
+    LoadAlignmentError = 4,
+    StoreAlignmentError = 5,
     Syscall   = 8,
+    Overflow  = 12,
 }
 
 const EXCEPTION_VECTORS: [[u32; 4]; 2] = [

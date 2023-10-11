@@ -24,6 +24,7 @@ impl Bus {
     pub fn load<T: Access>(&self, addr: u32) -> T {
         tracing::trace!("psx.load(0x{addr:08x}) ({:?})", T::width());
 
+        /* Handled via exceptions in cpu.exception()
         if cfg!(debug_assertions) {
             if T::width() == AccessWidth::Word && addr % 4 != 0 {
                 panic!("unaligned load<32> at address 0x{addr:08x}");
@@ -32,6 +33,7 @@ impl Bus {
                 panic!("unaligned load<16> at address 0x{addr:08x}");
             }
         }
+        */
 
         let paddr = map::mask_region(addr);
         match map::get_region(paddr) {
@@ -75,12 +77,17 @@ impl Bus {
                 tracing::warn!("read from expansion region 2 (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
+            map::Region::Dma(_mapping) => {
+                tracing::warn!("read from dma register 0x{addr:08x}), but this is unimplemented");
+                return T::from_u32(0);
+            }
         }
     }
 
     pub fn store<T: Access>(&mut self, addr: u32, val: T) {
         tracing::trace!("psx.store(0x{addr:08x}, {}) ({:?})", val.as_u32(), T::width());
 
+        /* Handled via exceptions in cpu.exception()
         if cfg!(debug_assertions) {
             if T::width() == AccessWidth::Word && addr % 4 != 0 {
                 panic!("unaligned store<32> at address 0x{addr:08x}");
@@ -89,6 +96,7 @@ impl Bus {
                 panic!("unaligned store<16> at address 0x{addr:08x}");
             }
         }
+        */
 
         let paddr = map::mask_region(addr);
         match map::get_region(paddr) {
@@ -122,7 +130,10 @@ impl Bus {
             },
             map::Region::Exp2(_mapping) => {
                 tracing::warn!("wrote to expansion region 2 (0x{addr:08x}), but this is unsupported");
-            }
+            },
+            map::Region::Dma(_mapping) => {
+                tracing::warn!("wrote to dma register (0x{addr:08x}), but this is unsupported");
+            },
         }
     }
 }

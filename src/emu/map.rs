@@ -38,6 +38,7 @@ const CACHE_CTL: Mapping = Mapping::new(0xfffe_0130, 4);
 const SPU      : Mapping = Mapping::new(0x1f80_1c00, 400);
 const EXP1     : Mapping = Mapping::new(0x1f00_0000, n_kib_bytes!(8) as u32);
 const EXP2     : Mapping = Mapping::new(0x1f80_2000, n_kib_bytes!(8) as u32);
+const DMA      : Mapping = Mapping::new(0x1f80_1080, 128);
 
 /// Contains the base address of the associated region
 #[derive(Copy, Clone)]
@@ -52,11 +53,12 @@ pub enum Region {
     Spu(Mapping),
     Exp1(Mapping),
     Exp2(Mapping),
+    Dma(Mapping),
 }
 
 // TODO: organize these based on profiling data?
 // TODO: TODO: organize these dynamically based on profiling data?
-const MEMORY_MAP: [(Mapping, Region); 10] = [
+const MEMORY_MAP: [(Mapping, Region); 11] = [
     (RAM,       Region::Ram(RAM)),
     (BIOS,      Region::Bios(BIOS)),
     (MEM_CTL,   Region::MemCtl(MEM_CTL)),
@@ -67,6 +69,8 @@ const MEMORY_MAP: [(Mapping, Region); 10] = [
     (SPU,       Region::Spu(SPU)),
     (EXP1,      Region::Exp1(EXP1)),
     (EXP2,      Region::Exp1(EXP2)),
+    (DMA,       Region::Dma(DMA)),
+
 ];
 
 #[derive(Debug, Copy, Clone)]
