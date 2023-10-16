@@ -66,7 +66,7 @@ impl Bus {
                 return T::from_u32(0);
             },
             map::Region::Spu(_mapping) => {
-                tracing::warn!("read from SPU memory region (0x{addr:08x}), but this is unimplemented");
+                tracing::warn!("read from SPU region (0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             },
             map::Region::Exp1(_mapping) => {
@@ -123,7 +123,7 @@ impl Bus {
                 tracing::warn!("wrote to cachectrl region (0x{addr:08x}), but this is unsupported");
             },
             map::Region::Spu(_mapping) => {
-                tracing::warn!("wrote to SPU memory region (0x{addr:08x}), but this is unsupported");
+                tracing::warn!("wrote to SPU region (0x{addr:08x}), but this is unsupported");
             },
             map::Region::Exp1(_mapping) => {
                 tracing::warn!("wrote to expansion region 1 (0x{addr:08x}), but this is unsupported");

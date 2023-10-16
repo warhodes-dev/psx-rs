@@ -1,12 +1,12 @@
 //! CPU module for handling all CPU instructions including the dispatch of other modules 
 //! (e.g. coprocessor or GPU)
 
-use crate::emu::{
+use crate::{emu::{
     bios::BIOS_START,
     cpu::instruction::{Instruction, RegisterIndex},
     cpu::exception::{Exception, ExceptionClass},
     bus::Bus,
-};
+}, set_log_level};
 
 use anyhow::{anyhow,Result};
 
@@ -210,6 +210,7 @@ impl Cpu {
             0x20 => self.op_lb(bus, inst),
             0x23 => self.op_lw(bus, inst),
             0x24 => self.op_lbu(bus, inst),
+            0x25 => self.op_lhu(bus, inst),
             0x28 => self.op_sb(bus, inst),
             0x29 => self.op_sh(bus, inst),
             0x2B => self.op_sw(bus, inst),
@@ -345,7 +346,7 @@ impl Cpu {
     // lbu rt,imm(rs)
     // rt = [imm + rs]
     fn op_lbu(&mut self, bus: &mut Bus, inst: Instruction) {
-        tracing::trace!("exec LB");
+        tracing::trace!("exec LBU");
 
         if self.cop.status().is_isolate_cache() {
             tracing::warn!("ignoring load while cache is isolated");
@@ -364,6 +365,37 @@ impl Cpu {
 
         let load = LoadDelay::new(rt, val as u32);
         self.chain_pending_load(load);
+    }
+
+    /// Load halfword unsigned
+    // lhu rt,imm(rs)
+    // rt = [imm + rs]
+    fn op_lhu(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LHU");
+
+        set_log_level(tracing_subscriber::filter::LevelFilter::TRACE);
+
+
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
+
+        let base = inst.imm_se();
+
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let offset = self.reg(rs);
+        let addr = base.wrapping_add(offset);
+
+        if addr % 2 != 0 {
+            self.exception(Exception::LoadAlignmentError)
+        } else {
+            let val = bus.load::<u16>(addr);
+            let load = LoadDelay::new(rt, val as u32);
+            self.chain_pending_load(load);
+        }
     }
 
     /// Store word
