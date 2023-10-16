@@ -17,6 +17,7 @@ pub fn set_log_level(filter_level: filter::LevelFilter) {
 
 use anyhow::{Result, anyhow};
 
+pub mod config;
 pub mod emu;
 //pub mod sdl;
 

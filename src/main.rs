@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use lazy_static::lazy_static;
+use tracing_subscriber::{filter, reload, prelude::*};
 use anyhow::Result;
 
 #[allow(unused_imports)]
@@ -12,8 +12,10 @@ use psx_rs::{
         cpu::{Cpu, self},
         Psx,
     },
+    config,
 };
-use tracing_subscriber::{filter, reload, prelude::*};
+
+mod cli;
 
 fn main() -> Result<()> {
     setup_trace();
