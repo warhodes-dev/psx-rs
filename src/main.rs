@@ -12,13 +12,12 @@ use psx_rs::{
         cpu::{Cpu, self},
         Psx,
     },
-    config,
+    config::{self, Config},
 };
 
-mod cli;
-
 fn main() -> Result<()> {
-    setup_trace();
+    let config = config::Config::parse_args();
+    setup_trace(&config);
 
     let start = std::time::SystemTime::now();
     let mut ctx = Context::new(Path::new("./scph1001.bin"))?;
@@ -35,8 +34,14 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn setup_trace() {
-    let filter = filter::LevelFilter::ERROR;
+fn setup_trace(config: &Config) {
+    let filter = match config.log_level {
+        config::LogLevel::Trace => filter::LevelFilter::TRACE,
+        config::LogLevel::Debug => filter::LevelFilter::DEBUG,
+        config::LogLevel::Info  => filter::LevelFilter::INFO,
+        config::LogLevel::Warn  => filter::LevelFilter::WARN,
+        config::LogLevel::Error => filter::LevelFilter::ERROR,
+    };
     let (filter, reload_handle) = reload::Layer::new(filter);
     let time_format = time::macros::format_description!(
         "[hour]:[minute]:[second].[subsecond digits:5]"

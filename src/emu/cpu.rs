@@ -373,9 +373,6 @@ impl Cpu {
     fn op_lhu(&mut self, bus: &mut Bus, inst: Instruction) {
         tracing::trace!("exec LHU");
 
-        set_log_level(tracing_subscriber::filter::LevelFilter::TRACE);
-
-
         if self.cop.status().is_isolate_cache() {
             tracing::warn!("ignoring load while cache is isolated");
             return;
@@ -1063,9 +1060,7 @@ impl Cpu {
     }
 
     fn op_syscall(&mut self, bus: &mut Bus, _inst: Instruction) {
-        //crate::set_log_level(tracing_subscriber::filter::LevelFilter::TRACE);
         tracing::trace!("exec SYSCALL");
-        //crate::set_kill_count(psx.instruction_cnt + 100);
 
         self.exception(Exception::Syscall);
     }
