@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use tracing_subscriber::{filter, reload, prelude::*};
+use tracing_subscriber::{fmt::format, filter, reload, prelude::*};
 use anyhow::Result;
 
 #[allow(unused_imports)]
@@ -50,7 +50,9 @@ fn setup_trace(config: &Config) {
         .unwrap_or_else(|_| time::UtcOffset::UTC);
     let timer = tracing_subscriber::fmt::time::OffsetTime::new(time_offset, time_format);
     let formatted_layer = tracing_subscriber::fmt::layer()
-        .with_timer(timer);
+        .event_format(format().compact())
+        //.with_timer(timer);
+        .without_time();
     tracing_subscriber::registry()
         .with(filter)
         .with(formatted_layer)

@@ -95,8 +95,8 @@ impl Cpu {
         if let Some(already_pending_load) = self.pending_load 
             && already_pending_load.target_reg != new_load.target_reg 
         {
-            let val = already_pending_load.val;
             let reg = already_pending_load.target_reg;
+            let val = already_pending_load.val;
             self.set_reg(reg, val);
 
             //TODO: Handle delay cycles... somehow
@@ -208,6 +208,7 @@ impl Cpu {
             0x0F => self.op_lui(bus, inst),
             0x10 => self.op_cop0(bus, inst),
             0x20 => self.op_lb(bus, inst),
+            0x21 => self.op_lh(bus, inst),
             0x23 => self.op_lw(bus, inst),
             0x24 => self.op_lbu(bus, inst),
             0x25 => self.op_lhu(bus, inst),
@@ -220,6 +221,9 @@ impl Cpu {
                 0x00 => self.op_sll(bus, inst),
                 0x02 => self.op_srl(bus, inst),
                 0x03 => self.op_sra(bus, inst),
+                0x04 => self.op_sllv(bus, inst),
+                0x06 => self.op_srlv(bus, inst),
+                0x07 => self.op_srav(bus, inst),
                 0x08 => self.op_jr(bus, inst),
                 0x09 => self.op_jalr(bus, inst),
                 0x0c => self.op_syscall(bus, inst),
@@ -234,6 +238,7 @@ impl Cpu {
                 0x23 => self.op_subu(bus, inst),
                 0x24 => self.op_and(bus, inst),
                 0x25 => self.op_or(bus, inst),
+                0x27 => self.op_nor(bus, inst),
                 0x2A => self.op_slt(bus, inst),
                 0x2B => self.op_sltu(bus, inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
@@ -470,7 +475,7 @@ impl Cpu {
         bus.store(addr, val);
     }
 
-    /// Shift left tracingical
+    /// Shift left logical
     // sll rd,rt,imm
     // rd = rt << (0x00..0x1f)
     fn op_sll(&mut self, bus: &mut Bus, inst: Instruction) {
@@ -486,7 +491,7 @@ impl Cpu {
         self.set_reg(rd, val);
     }
 
-    /// Shift right tracingical
+    /// Shift right logical
     // sll rd,rt,imm
     // rd = rt >> (0x00..0x1f)
     fn op_srl(&mut self, bus: &mut Bus, inst: Instruction) {
@@ -502,6 +507,38 @@ impl Cpu {
         self.set_reg(rd, val);
     }
 
+    /// Shift left logical variable
+    // sllv rd,rt,rs
+    // rd = rt << (rs & 0x1f)
+    fn op_sllv(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLLV");
+        let rt = inst.rt();
+        let rs = inst.rs();
+        let rd = inst.rd();
+
+        let t = self.reg(rt);
+        let s = self.reg(rs);
+        let val = t << (s & 0x1f);
+
+        self.set_reg(rd, val);
+    }
+
+    /// Shift right logical variable
+    // srlv rd,rt,rs
+    // rd = rt << (rs & 0x1f)
+    fn op_srlv(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SLLV");
+        let rd = inst.rd();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let t = self.reg(rt);
+        let s = self.reg(rs);
+        let val = t >> (s & 0x1f);
+
+        self.set_reg(rd, val);
+    }
+
     /// Shift right arithmetic
     // sra rd,rt,imm
     // rd = rt >> (0x00..0x1f)
@@ -513,6 +550,23 @@ impl Cpu {
 
         let t = self.reg(rt) as i32;
         let val = (t >> i) as u32;
+
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
+    }
+
+    /// Shift right arithmetic variable
+    // srav rd,rt,rs
+    // rd = rt >> (rs & 0x1f)
+    fn op_srav(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SRA");
+        let rd = inst.rd();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let t = self.reg(rt) as i32;
+        let s = self.reg(rs);
+        let val = (t >> (s & 0x1f)) as u32;
 
         //self.handle_pending_load();
         self.set_reg(rd, val);
@@ -992,7 +1046,7 @@ impl Cpu {
 
     /// Bitwise OR
     // or rd,rs,rt
-    // rd = rs OR rt
+    // rd = rs | rt
     fn op_or(&mut self, bus: &mut Bus, inst: Instruction) {
         tracing::trace!("exec OR");
         let rd = inst.rd();
@@ -1006,6 +1060,22 @@ impl Cpu {
 
         //self.handle_pending_load();
         self.set_reg(rd, val);
+    }
+
+    /// Bitwise NOR
+    // nor rd,rs,rt
+    // rd = 0xffff_ffff ^ (rs | rt)
+    fn op_nor(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec NOR");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+
+        let val = 0xffff_ffff ^ (s | t);
+
     }
 
     /// Bitwise OR (immediate)
