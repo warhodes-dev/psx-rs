@@ -192,20 +192,20 @@ impl Cpu {
     pub fn dispatch_instruction(&mut self, bus: &mut Bus, inst: Instruction) {
         // Primary opcode
         match inst.opcode() {
-            0x01 => self.op_bcondz(bus, inst),
-            0x02 => self.op_j(bus, inst),
-            0x03 => self.op_jal(bus, inst),
-            0x04 => self.op_beq(bus, inst),
-            0x05 => self.op_bne(bus, inst),
-            0x06 => self.op_blez(bus, inst),
-            0x07 => self.op_bgtz(bus, inst),
-            0x08 => self.op_addi(bus, inst),
-            0x09 => self.op_addiu(bus, inst),
-            0x0A => self.op_slti(bus, inst),
-            0x0B => self.op_sltiu(bus, inst),
-            0x0C => self.op_andi(bus, inst),
-            0x0D => self.op_ori(bus, inst),
-            0x0F => self.op_lui(bus, inst),
+            0x01 => self.op_bcondz(inst),
+            0x02 => self.op_j(inst),
+            0x03 => self.op_jal(inst),
+            0x04 => self.op_beq(inst),
+            0x05 => self.op_bne(inst),
+            0x06 => self.op_blez(inst),
+            0x07 => self.op_bgtz(inst),
+            0x08 => self.op_addi(inst),
+            0x09 => self.op_addiu(inst),
+            0x0A => self.op_slti(inst),
+            0x0B => self.op_sltiu(inst),
+            0x0C => self.op_andi(inst),
+            0x0D => self.op_ori(inst),
+            0x0F => self.op_lui(inst),
             0x10 => self.op_cop0(bus, inst),
             0x20 => self.op_lb(bus, inst),
             0x21 => self.op_lh(bus, inst),
@@ -218,29 +218,29 @@ impl Cpu {
 
             // Secondary Opcodes
             0x00 => match inst.funct() { 
-                0x00 => self.op_sll(bus, inst),
-                0x02 => self.op_srl(bus, inst),
-                0x03 => self.op_sra(bus, inst),
-                0x04 => self.op_sllv(bus, inst),
-                0x06 => self.op_srlv(bus, inst),
-                0x07 => self.op_srav(bus, inst),
-                0x08 => self.op_jr(bus, inst),
-                0x09 => self.op_jalr(bus, inst),
-                0x0c => self.op_syscall(bus, inst),
-                0x1a => self.op_div(bus, inst),
-                0x1b => self.op_divu(bus, inst),
-                0x10 => self.op_mfhi(bus, inst),
-                0x11 => self.op_mthi(bus, inst),
-                0x12 => self.op_mflo(bus, inst),
-                0x13 => self.op_mtlo(bus, inst),
-                0x20 => self.op_add(bus, inst),
-                0x21 => self.op_addu(bus, inst),
-                0x23 => self.op_subu(bus, inst),
-                0x24 => self.op_and(bus, inst),
-                0x25 => self.op_or(bus, inst),
-                0x27 => self.op_nor(bus, inst),
-                0x2A => self.op_slt(bus, inst),
-                0x2B => self.op_sltu(bus, inst),
+                0x00 => self.op_sll(inst),
+                0x02 => self.op_srl(inst),
+                0x03 => self.op_sra(inst),
+                0x04 => self.op_sllv(inst),
+                0x06 => self.op_srlv(inst),
+                0x07 => self.op_srav(inst),
+                0x08 => self.op_jr(inst),
+                0x09 => self.op_jalr(inst),
+                0x0c => self.op_syscall(inst),
+                0x1a => self.op_div(inst),
+                0x1b => self.op_divu(inst),
+                0x10 => self.op_mfhi(inst),
+                0x11 => self.op_mthi(inst),
+                0x12 => self.op_mflo(inst),
+                0x13 => self.op_mtlo(inst),
+                0x20 => self.op_add(inst),
+                0x21 => self.op_addu(inst),
+                0x23 => self.op_subu(inst),
+                0x24 => self.op_and(inst),
+                0x25 => self.op_or(inst),
+                0x27 => self.op_nor(inst),
+                0x2A => self.op_slt(inst),
+                0x2B => self.op_sltu(inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             },
             _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
@@ -252,7 +252,7 @@ impl Cpu {
     /// Load upper (immediate)
     // lui rt,imm
     // rt = (0x0000..0xffff) << 16
-    fn op_lui(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_lui(&mut self, inst: Instruction) {
         tracing::trace!("exec LUI");
         let i = inst.imm();
         let rt = inst.rt(); // TODO: Pipelining
@@ -478,7 +478,7 @@ impl Cpu {
     /// Shift left logical
     // sll rd,rt,imm
     // rd = rt << (0x00..0x1f)
-    fn op_sll(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_sll(&mut self, inst: Instruction) {
         tracing::trace!("exec SLL");
         let i = inst.shamt();
         let rt = inst.rt();
@@ -494,7 +494,7 @@ impl Cpu {
     /// Shift right logical
     // sll rd,rt,imm
     // rd = rt >> (0x00..0x1f)
-    fn op_srl(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_srl(&mut self, inst: Instruction) {
         tracing::trace!("exec SLL");
         let i = inst.shamt();
         let rt = inst.rt();
@@ -510,7 +510,7 @@ impl Cpu {
     /// Shift left logical variable
     // sllv rd,rt,rs
     // rd = rt << (rs & 0x1f)
-    fn op_sllv(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_sllv(&mut self, inst: Instruction) {
         tracing::trace!("exec SLLV");
         let rt = inst.rt();
         let rs = inst.rs();
@@ -526,7 +526,7 @@ impl Cpu {
     /// Shift right logical variable
     // srlv rd,rt,rs
     // rd = rt << (rs & 0x1f)
-    fn op_srlv(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_srlv(&mut self, inst: Instruction) {
         tracing::trace!("exec SLLV");
         let rd = inst.rd();
         let rt = inst.rt();
@@ -542,7 +542,7 @@ impl Cpu {
     /// Shift right arithmetic
     // sra rd,rt,imm
     // rd = rt >> (0x00..0x1f)
-    fn op_sra(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_sra(&mut self, inst: Instruction) {
         tracing::trace!("exec SRA");
         let i = inst.shamt();
         let rt = inst.rt();
@@ -558,7 +558,7 @@ impl Cpu {
     /// Shift right arithmetic variable
     // srav rd,rt,rs
     // rd = rt >> (rs & 0x1f)
-    fn op_srav(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_srav(&mut self, inst: Instruction) {
         tracing::trace!("exec SRA");
         let rd = inst.rd();
         let rt = inst.rt();
@@ -575,7 +575,7 @@ impl Cpu {
     /// Add
     // add rd,rs,rt
     // rd = rs + rt (with overflow trap)
-    fn op_add(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_add(&mut self, inst: Instruction) {
         tracing::trace!("exec ADD");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -594,7 +594,7 @@ impl Cpu {
     /// Add unsigned
     // addu rd,rs,rt
     // rd = rs + rt
-    fn op_addu(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_addu(&mut self, inst: Instruction) {
         tracing::trace!("exec ADDU");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -617,7 +617,7 @@ impl Cpu {
     //  it’s simply 4 + -1 and that’s obviously perfectly fine. The actual result of
     //  the operation would be the same (0x00000003) but since ADDI generates an
     //  exception on overflow the difference in behaviour is critical.
-    fn op_addi(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_addi(&mut self, inst: Instruction) {
         tracing::trace!("exec ADDI");
         let i = inst.imm_se() as i32;
         let rt = inst.rt();
@@ -635,7 +635,7 @@ impl Cpu {
     /// Add immediate unsigned
     // addiu rt,rs,imm
     // rt = rs + (-0x8000..+0x7fff)
-    fn op_addiu(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_addiu(&mut self, inst: Instruction) {
         tracing::trace!("exec ADDIU");
         let i = inst.imm_se();
         let rt = inst.rt();
@@ -651,7 +651,7 @@ impl Cpu {
     /// Sub
     // sub rd,rs,rt
     // rd = rs + rt (with overflow trap)
-    fn op_sub(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_sub(&mut self, inst: Instruction) {
         tracing::trace!("exec SUB");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -670,7 +670,7 @@ impl Cpu {
     /// Sub unsigned
     // subu rd,rs,rt
     // rd = rs + rt
-    fn op_subu(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_subu(&mut self, inst: Instruction) {
         tracing::trace!("exec SUBU");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -687,7 +687,7 @@ impl Cpu {
     /// Divide
     // div rs,rt
     // lo = rs / rt, hi = rs % rt
-    fn op_div(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_div(&mut self, inst: Instruction) {
         tracing::trace!("exec DIV");
         let rs = inst.rs();
         let rt = inst.rt();
@@ -722,7 +722,7 @@ impl Cpu {
     /// Divide unsigned
     // divu rs,rt
     // lo = rs / rt, hi = rs % rt
-    fn op_divu(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_divu(&mut self, inst: Instruction) {
         tracing::trace!("exec DIV");
         let rs = inst.rs();
         let rt = inst.rt();
@@ -749,7 +749,7 @@ impl Cpu {
     /// Move from LO
     // mflo rd
     // rd = lo
-    fn op_mflo(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_mflo(&mut self, inst: Instruction) {
         tracing::trace!("exec MFLO");
         let rd = inst.rd();
         let lo = self.lo;
@@ -764,7 +764,7 @@ impl Cpu {
     /// Move to LO
     // mtlo rs
     // lo = rs
-    fn op_mtlo(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_mtlo(&mut self, inst: Instruction) {
         tracing::trace!("exec MTLO");
         let rs = inst.rs();
 
@@ -779,7 +779,7 @@ impl Cpu {
     /// Move from HI
     // mfhi rd
     // rd = lo
-    fn op_mfhi(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_mfhi(&mut self, inst: Instruction) {
         tracing::trace!("exec MFLO");
         let rd = inst.rd();
         let hi = self.hi;
@@ -794,7 +794,7 @@ impl Cpu {
     /// Move to HI
     // mthi rs
     // hi = rs
-    fn op_mthi(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_mthi(&mut self, inst: Instruction) {
         tracing::trace!("exec MTHI");
         let rs = inst.rs();
 
@@ -809,7 +809,7 @@ impl Cpu {
     /// Jump
     // j addr
     // pc = (pc & 0xf000_0000) + (addr * 4)
-    fn op_j(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_j(&mut self, inst: Instruction) {
         tracing::trace!("exec J");
         let addr = inst.addr();
 
@@ -822,7 +822,7 @@ impl Cpu {
     /// Jump and link
     // jal addr
     // pc = (pc & 0xf000_0000) + (addr * 4); ra = $ + 8
-    fn op_jal(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_jal(&mut self, inst: Instruction) {
         tracing::trace!("exec JAL");
         let addr = inst.addr();
 
@@ -839,7 +839,7 @@ impl Cpu {
     /// Jump to register
     // jr rs
     // pc = rs
-    fn op_jr(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_jr(&mut self, inst: Instruction) {
         tracing::trace!("exec JR");
         let rs = inst.rs();
         let addr = self.reg(rs);
@@ -852,7 +852,7 @@ impl Cpu {
 
     /// Jump to register and link
     // (rd,)rs(,rd)
-    fn op_jalr(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_jalr(&mut self, inst: Instruction) {
         tracing::trace!("exec JALR");
         let rs = inst.rs();
         let rd = inst.rd();
@@ -872,7 +872,7 @@ impl Cpu {
     /// Branch if equal
     // beq rs,rt,dest
     // if rs = rt, then pc = $ + 4 + (-0x8000 + 0x7fff) * 4
-    fn op_beq(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_beq(&mut self, inst: Instruction) {
         tracing::trace!("exec BEQ");
         let i = inst.imm_se();
         let rs = inst.rs();
@@ -892,7 +892,7 @@ impl Cpu {
     /// Branch if not equal
     // bne rs,rt,addr
     // if rs != rt, pc = $ + 4 + (-0x8000..0x7FFF) * 4
-    fn op_bne(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_bne(&mut self, inst: Instruction) {
         tracing::trace!("exec BNE");
         let i = inst.imm_se();
         let rs = inst.rs();
@@ -911,7 +911,7 @@ impl Cpu {
 
     /// Branch (condition) zero
     /// This opcode can be bltz, bgez, bltzal, or bgezal
-    fn op_bcondz(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_bcondz(&mut self, inst: Instruction) {
         enum BranchCondition {
             LessThan,
             GreaterEqual,
@@ -944,7 +944,7 @@ impl Cpu {
     /// Branch if greater than zero
     // bgtz rs,dest
     // if rs > 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
-    fn op_bgtz(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_bgtz(&mut self, inst: Instruction) {
         tracing::trace!("exec BGTZ");
         let i = inst.imm_se();
         let rs = inst.rs();
@@ -961,7 +961,7 @@ impl Cpu {
     /// Branch if less than or equal to zero
     // blez rs,dest
     // if rs <= 0, pc = $ + 4 + (-0x8000..0x7FFF) * 4
-    fn op_blez(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_blez(&mut self, inst: Instruction) {
         tracing::trace!("exec BGTZ");
         let i = inst.imm_se();
         let rs = inst.rs();
@@ -978,7 +978,7 @@ impl Cpu {
     /// Set on less than
     // stlu rd,rs,rt
     // if rs < rt (signed comparison) then rd=1 else rd=0
-    fn op_slt(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_slt(&mut self, inst: Instruction) {
         tracing::trace!("exec SLT");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -996,7 +996,7 @@ impl Cpu {
     /// Set on less than, unsigned
     // stlu rd,rs,rt
     // if rs < rt (unsigned comparison) then rd=1 else rd=0
-    fn op_sltu(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_sltu(&mut self, inst: Instruction) {
         tracing::trace!("exec SLTU");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -1014,7 +1014,7 @@ impl Cpu {
     /// Set on less than immediate
     // slti rt,rs,imm
     // if rs < imm (sign-extended immediate) (signed comparison) then rt=1, else rt=0
-    fn op_slti(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_slti(&mut self, inst: Instruction) {
         tracing::trace!("exec SLTI");
         let i = inst.imm_se() as i32;
         let rs = inst.rs();
@@ -1030,7 +1030,7 @@ impl Cpu {
     /// Set on less than immediate, unsigned
     // sltiu rt,rs,imm
     // if rs < imm (sign-extended immediate) (unsigned comparison) then rt=1, else rt=0
-    fn op_sltiu(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_sltiu(&mut self, inst: Instruction) {
         tracing::trace!("exec SLTIU");
         let i = inst.imm_se();
         let rs = inst.rs();
@@ -1047,7 +1047,7 @@ impl Cpu {
     /// Bitwise OR
     // or rd,rs,rt
     // rd = rs | rt
-    fn op_or(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_or(&mut self, inst: Instruction) {
         tracing::trace!("exec OR");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -1065,7 +1065,7 @@ impl Cpu {
     /// Bitwise NOR
     // nor rd,rs,rt
     // rd = 0xffff_ffff ^ (rs | rt)
-    fn op_nor(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_nor(&mut self, inst: Instruction) {
         tracing::trace!("exec NOR");
         let rd = inst.rd();
         let rs = inst.rs();
@@ -1076,12 +1076,13 @@ impl Cpu {
 
         let val = 0xffff_ffff ^ (s | t);
 
+        self.set_reg(rd, val);
     }
 
     /// Bitwise OR (immediate)
     // ori rs,rt,imm
     // rt = rs | (0x0000..0xffff)
-    fn op_ori(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_ori(&mut self, inst: Instruction) {
         tracing::trace!("exec ORI");
         let i = inst.imm();
         let rt = inst.rt();
@@ -1097,7 +1098,7 @@ impl Cpu {
     /// Bitwise AND
     // and rd,rs,rt
     // rd = rs & rt
-    fn op_and(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_and(&mut self, inst: Instruction) {
         tracing::trace!("exec AND");
 
         let rd = inst.rd();
@@ -1115,7 +1116,7 @@ impl Cpu {
     /// Bitwise AND immediate
     // andi rt,rs,imm
     // rt = rs & imm
-    fn op_andi(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_andi(&mut self, inst: Instruction) {
         tracing::trace!("exec ANDI");
         
         let i = inst.imm();
@@ -1129,7 +1130,7 @@ impl Cpu {
         self.set_reg(rt, t);
     }
 
-    fn op_syscall(&mut self, bus: &mut Bus, _inst: Instruction) {
+    fn op_syscall(&mut self, _inst: Instruction) {
         tracing::trace!("exec SYSCALL");
 
         self.exception(Exception::Syscall);
