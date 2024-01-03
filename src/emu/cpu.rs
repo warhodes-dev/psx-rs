@@ -50,6 +50,12 @@ pub struct Cpu {
     branch_delay_slot: bool,
 }
 
+#[derive(Debug, Default)]
+/// Values indicating the current state of the CPU
+pub struct CpuState {
+
+}
+
 impl Cpu {
     pub fn new() -> Self {
         let mut regs = [0xdeadbeef; 32];
@@ -141,12 +147,10 @@ impl Cpu {
         self.pc = self.next_pc;
         self.next_pc = self.next_pc.wrapping_add(4);
     }
-}
 
-#[derive(Debug)]
-enum BranchDelay {
-    Branch,
-    Delay,
+    fn commit_registers(&mut self) {
+        self.regs = self.out_regs;
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -186,7 +190,7 @@ impl Cpu {
 
         self.dispatch_instruction(bus, inst);
 
-        self.regs = self.out_regs;
+        self.commit_registers();
     }
 
     pub fn dispatch_instruction(&mut self, bus: &mut Bus, inst: Instruction) {
@@ -227,6 +231,7 @@ impl Cpu {
                 0x08 => self.op_jr(inst),
                 0x09 => self.op_jalr(inst),
                 0x0c => self.op_syscall(inst),
+                0x19 => self.op_multu(inst),
                 0x1a => self.op_div(inst),
                 0x1b => self.op_divu(inst),
                 0x10 => self.op_mfhi(inst),
@@ -683,6 +688,38 @@ impl Cpu {
         //self.handle_pending_load();
         self.set_reg(rd, val);
     }
+    /// Multiply
+    // mult rs,rt
+    // hi:lo = rs * rt
+    fn op_mult(&mut self, inst: Instruction) { // Unconfirmed
+        tracing::trace!("exec MULTU");
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let multiplicand = self.reg(rs) as i64;
+        let multiplier = self.reg(rt) as i64;
+        let product = multiplicand * multiplier;
+
+        self.lo = (product >> 32) as u32;
+        self.hi = product as u32;
+    }
+
+    /// Multiply Unsigned
+    // multu rs,rt
+    // hi:lo = rs * rt (unsigned)
+    fn op_multu(&mut self, inst: Instruction) { // Unconfirmed
+        tracing::trace!("exec MULTU");
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let multiplicand = self.reg(rs) as u64;
+        let multiplier = self.reg(rt) as u64;
+
+        let product = multiplicand * multiplier;
+
+        self.lo = (product >> 32) as u32;
+        self.hi = product as u32;
+    }
 
     /// Divide
     // div rs,rt
@@ -692,10 +729,10 @@ impl Cpu {
         let rs = inst.rs();
         let rt = inst.rt();
 
-        let num = self.reg(rs) as i32;
-        let denom = self.reg(rt) as i32;
+        let numerator = self.reg(rs) as i32;
+        let denominator = self.reg(rt) as i32;
 
-        match (num, denom) {
+        match (numerator, denominator) {
             (n, 0) if n >= 0 => { // Special case: Divide by zero (positive)
                 self.lo = -1i32 as u32;
                 self.hi = n as u32;
@@ -721,16 +758,16 @@ impl Cpu {
 
     /// Divide unsigned
     // divu rs,rt
-    // lo = rs / rt, hi = rs % rt
+    // lo = rs / rt, hi = rs % rt (unsigned)
     fn op_divu(&mut self, inst: Instruction) {
         tracing::trace!("exec DIV");
         let rs = inst.rs();
         let rt = inst.rt();
 
-        let num = self.reg(rs);
-        let denom = self.reg(rt);
+        let numerator = self.reg(rs);
+        let denominator = self.reg(rt);
 
-        match (num, denom) {
+        match (numerator, denominator) {
             (n, 0) => { // Special case: Divide by zero
                 self.lo = -1i32 as u32;
                 self.hi = n;

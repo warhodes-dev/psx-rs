@@ -81,6 +81,10 @@ impl Bus {
                 tracing::warn!("read from dma register 0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             }
+            map::Region::Gpu(_mapping) => {
+                tracing::warn!("read from gpu register 0x{addr:08x}), but this is unimplemented");
+                return T::from_u32(0);
+            }
         }
     }
 
@@ -133,6 +137,9 @@ impl Bus {
             },
             map::Region::Dma(_mapping) => {
                 tracing::warn!("wrote to dma register (0x{addr:08x}), but this is unsupported");
+            },
+            map::Region::Gpu(_mapping) => {
+                tracing::warn!("wrote to gpu register (0x{addr:08x}), but this is unsupported");
             },
         }
     }

@@ -39,6 +39,7 @@ const SPU      : Mapping = Mapping::new(0x1f80_1c00, 640);
 const EXP1     : Mapping = Mapping::new(0x1f00_0000, n_kib_bytes!(8) as u32);
 const EXP2     : Mapping = Mapping::new(0x1f80_2000, n_kib_bytes!(8) as u32);
 const DMA      : Mapping = Mapping::new(0x1f80_1080, 128);
+const GPU      : Mapping = Mapping::new(0x1f80_1810, 8);
 
 /// Contains the base address of the associated region
 #[derive(Copy, Clone)]
@@ -54,11 +55,12 @@ pub enum Region {
     Exp1(Mapping),
     Exp2(Mapping),
     Dma(Mapping),
+    Gpu(Mapping),
 }
 
 // TODO: organize these based on profiling data?
 // TODO: TODO: organize these dynamically based on profiling data?
-const MEMORY_MAP: [(Mapping, Region); 11] = [
+const MEMORY_MAP: [(Mapping, Region); 12] = [
     (RAM,       Region::Ram(RAM)),
     (BIOS,      Region::Bios(BIOS)),
     (MEM_CTL,   Region::MemCtl(MEM_CTL)),
@@ -70,7 +72,7 @@ const MEMORY_MAP: [(Mapping, Region); 11] = [
     (EXP1,      Region::Exp1(EXP1)),
     (EXP2,      Region::Exp1(EXP2)),
     (DMA,       Region::Dma(DMA)),
-
+    (GPU,       Region::Gpu(GPU)),
 ];
 
 #[derive(Debug, Copy, Clone)]

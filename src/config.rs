@@ -3,7 +3,7 @@ use clap::{ValueEnum, Parser};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(value_enum, short, long, default_value_t=LogLevel::Error)]
+    #[clap(value_enum, short, long, ignore_case=true, default_value_t=LogLevel::Error)]
     pub log: LogLevel,
 }
 
