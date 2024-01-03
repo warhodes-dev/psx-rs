@@ -568,6 +568,72 @@ impl Cpu {
         bus.store(addr, val);
     }
 
+    /// Store word left
+    // swl rt,imm(rs)
+    // ???
+    fn op_swl(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SWL");
+
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
+
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let addr = self.reg(rs).wrapping_add(i);
+        let val = self.reg(rt);
+
+        let aligned_addr = addr & !3;
+        let current_mem = bus.load::<u32>(aligned_addr);
+
+        let (mask, shift) = match addr & 3 {
+            0 => (0xffff_ff00, 24),
+            1 => (0xffff_0000, 16),
+            2 => (0xff00_0000, 8),
+            3 => (0x0000_0000, 0),
+            _ => unreachable!(),
+        };
+
+        let store = (current_mem & mask) | (val >> shift);
+        bus.store::<u32>(aligned_addr, store);
+    }
+
+    /// Store word right
+    // swr rt,imm(rs)
+    // ???
+    fn op_swr(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SWR");
+
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
+
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let addr = self.reg(rs).wrapping_add(i);
+        let val = self.reg(rt);
+
+        let aligned_addr = addr & !3;
+        let current_mem = bus.load::<u32>(aligned_addr);
+
+        let (mask, shift) = match addr & 3 {
+            0 => (0x0000_0000, 0),
+            1 => (0x0000_00ff, 8),
+            2 => (0x0000_ffff, 16),
+            3 => (0x00ff_ffff, 24),
+            _ => unreachable!(),
+        };
+
+        let store = (current_mem & mask) | (val << shift);
+        bus.store::<u32>(aligned_addr, store);
+    }
+
     /// Shift left logical
     // sll rd,rt,imm
     // rd = rt << (0x00..0x1f)
