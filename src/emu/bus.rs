@@ -1,9 +1,11 @@
-use crate::emu::{
+
+
+use crate::{emu::{
     map,
     Ram,
     Bios,
     Access, AccessWidth
-};
+}, set_log_level};
 
 pub struct Bus {
     ram: Ram,
@@ -81,9 +83,14 @@ impl Bus {
                 tracing::warn!("read from dma register 0x{addr:08x}), but this is unimplemented");
                 return T::from_u32(0);
             }
-            map::Region::Gpu(_mapping) => {
+            map::Region::Gpu(mapping) => {
                 tracing::warn!("read from gpu register 0x{addr:08x}), but this is unimplemented");
-                return T::from_u32(0);
+                let offset = paddr - mapping.base;
+                let response = match offset {
+                    4 => 0x1000_0000,
+                    _ => 0,
+                };
+                T::from_u32(response)
             }
         }
     }

@@ -205,20 +205,26 @@ impl Cpu {
             0x07 => self.op_bgtz(inst),
             0x08 => self.op_addi(inst),
             0x09 => self.op_addiu(inst),
-            0x0A => self.op_slti(inst),
-            0x0B => self.op_sltiu(inst),
-            0x0C => self.op_andi(inst),
-            0x0D => self.op_ori(inst),
-            0x0F => self.op_lui(inst),
+            0x0a => self.op_slti(inst),
+            0x0b => self.op_sltiu(inst),
+            0x0c => self.op_andi(inst),
+            0x0d => self.op_ori(inst),
+            0x0e => self.op_xori(inst),
+            0x0f => self.op_lui(inst),
             0x10 => self.op_cop0(bus, inst),
+            0x11 => self.op_cop1(inst),
+            0x12 => self.op_cop2(bus, inst),
+            0x13 => self.op_cop3(inst),
             0x20 => self.op_lb(bus, inst),
             0x21 => self.op_lh(bus, inst),
+            0x22 => self.op_lwl(bus, inst),
             0x23 => self.op_lw(bus, inst),
             0x24 => self.op_lbu(bus, inst),
             0x25 => self.op_lhu(bus, inst),
+            0x22 => self.op_lwr(bus, inst),
             0x28 => self.op_sb(bus, inst),
             0x29 => self.op_sh(bus, inst),
-            0x2B => self.op_sw(bus, inst),
+            0x2b => self.op_sw(bus, inst),
 
             // Secondary Opcodes
             0x00 => match inst.funct() { 
@@ -231,21 +237,25 @@ impl Cpu {
                 0x08 => self.op_jr(inst),
                 0x09 => self.op_jalr(inst),
                 0x0c => self.op_syscall(inst),
-                0x19 => self.op_multu(inst),
-                0x1a => self.op_div(inst),
-                0x1b => self.op_divu(inst),
+                0x0d => self.op_break(inst),
                 0x10 => self.op_mfhi(inst),
                 0x11 => self.op_mthi(inst),
                 0x12 => self.op_mflo(inst),
                 0x13 => self.op_mtlo(inst),
+                0x18 => self.op_mult(inst),
+                0x19 => self.op_multu(inst),
+                0x1a => self.op_div(inst),
+                0x1b => self.op_divu(inst),
                 0x20 => self.op_add(inst),
                 0x21 => self.op_addu(inst),
+                0x22 => self.op_sub(inst),
                 0x23 => self.op_subu(inst),
                 0x24 => self.op_and(inst),
                 0x25 => self.op_or(inst),
+                0x26 => self.op_xor(inst),
                 0x27 => self.op_nor(inst),
-                0x2A => self.op_slt(inst),
-                0x2B => self.op_sltu(inst),
+                0x2a => self.op_slt(inst),
+                0x2b => self.op_sltu(inst),
                 _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
             },
             _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
@@ -403,6 +413,84 @@ impl Cpu {
             let load = LoadDelay::new(rt, val as u32);
             self.chain_pending_load(load);
         }
+    }
+
+    /// Load word left
+    // lwl rt,imm(rs)
+    // ???
+    fn op_lwl(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LWL");
+
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
+
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let addr = self.reg(rs).wrapping_add(i);
+
+        // From emulation guide pg. 87
+        // This instruction bypasses the load delay restriction:
+        // instruction will merge the new contents with the value
+        // currently being loaded if need be.
+        let current_val = self.out_regs[rt.0 as usize];
+
+        let aligned_addr = addr & !3;
+        let aligned_word = bus.load::<u32>(aligned_addr);
+
+        let (mask, shift) = match addr & 3 {
+            0 => (0x00ff_ffff, 24),
+            1 => (0x0000_ffff, 16),
+            2 => (0x0000_00ff, 8),
+            3 => (0x0000_0000, 0),
+            _ => unreachable!(),
+        };
+
+        let val = (current_val & mask) | (aligned_word << shift);
+        let load = LoadDelay::new(rt, val);
+        self.chain_pending_load(load)
+    }
+
+    /// Load word right
+    // lwl rt,imm(rs)
+    // ???
+    fn op_lwr(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LWR");
+
+        if self.cop.status().is_isolate_cache() {
+            tracing::warn!("ignoring load while cache is isolated");
+            return;
+        }
+
+        let i = inst.imm_se();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let addr = self.reg(rs).wrapping_add(i);
+
+        // From emulation guide pg. 87
+        // This instruction bypasses the load delay restriction:
+        // instruction will merge the new contents with the value
+        // currently being loaded if need be.
+        let current_val = self.out_regs[rt.0 as usize];
+
+        let aligned_addr = addr & !3;
+        let aligned_word = bus.load::<u32>(aligned_addr);
+
+        let (mask, shift) = match addr & 3 {
+            0 => (0x0000_0000, 0),
+            1 => (0xff00_0000, 8),
+            2 => (0xffff_0000, 16),
+            3 => (0xffff_ff00, 24),
+            _ => unreachable!(),
+        };
+
+        let val = (current_val & mask) | (aligned_word >> shift);
+        let load = LoadDelay::new(rt, val);
+        self.chain_pending_load(load)
     }
 
     /// Store word
@@ -665,11 +753,12 @@ impl Cpu {
         let s = self.reg(rs);
         let t = self.reg(rt);
 
-        let val = s.checked_sub(t)
-            .expect(&format!("SUB: Overflow ({s} + {t})"));
-
-        //self.handle_pending_load();
-        self.set_reg(rd, val);
+        if let Some(val) = s.checked_sub(t) {
+            //self.handle_pending_load();
+            self.set_reg(rd, val);
+        } else {
+            self.exception(Exception::Overflow)
+        }
     }
 
     /// Sub unsigned
@@ -688,11 +777,12 @@ impl Cpu {
         //self.handle_pending_load();
         self.set_reg(rd, val);
     }
+
     /// Multiply
     // mult rs,rt
     // hi:lo = rs * rt
     fn op_mult(&mut self, inst: Instruction) { // Unconfirmed
-        tracing::trace!("exec MULTU");
+        tracing::trace!("exec MULT");
         let rs = inst.rs();
         let rt = inst.rt();
 
@@ -1099,6 +1189,24 @@ impl Cpu {
         self.set_reg(rd, val);
     }
 
+    /// Bitwise XOR
+    // xor rd,rs,rt
+    // rd = rs ^ rt
+    fn op_xor(&mut self, inst: Instruction) {
+        tracing::trace!("exec XOR");
+        let rd = inst.rd();
+        let rs = inst.rs();
+        let rt = inst.rt();
+
+        let s = self.reg(rs);
+        let t = self.reg(rt);
+
+        let val = s ^ t;
+
+        //self.handle_pending_load();
+        self.set_reg(rd, val);
+    }
+
     /// Bitwise NOR
     // nor rd,rs,rt
     // rd = 0xffff_ffff ^ (rs | rt)
@@ -1127,6 +1235,22 @@ impl Cpu {
 
         let s = self.reg(rs);
         let val = s | i;
+
+        //self.handle_pending_load();
+        self.set_reg(rt, val);
+    }
+
+    /// Bitwise XOR (immediate)
+    // xori rs,rt,imm
+    // rt = rs ^ (0x0000..0xffff)
+    fn op_xori(&mut self, inst: Instruction) {
+        tracing::trace!("exec XORI");
+        let i = inst.imm();
+        let rt = inst.rt();
+        let rs = inst.rs();
+
+        let s = self.reg(rs);
+        let val = s ^ i;
 
         //self.handle_pending_load();
         self.set_reg(rt, val);
@@ -1169,8 +1293,12 @@ impl Cpu {
 
     fn op_syscall(&mut self, _inst: Instruction) {
         tracing::trace!("exec SYSCALL");
-
         self.exception(Exception::Syscall);
+    }
+
+    fn op_break(&mut self, _inst: Instruction) {
+        tracing::trace!("exec BREAK");
+        self.exception(Exception::Break);
     }
 
     /* === Coprocessor logic === */
@@ -1186,6 +1314,32 @@ impl Cpu {
             0x10 => self.op_rfe(bus, inst),
             _else => panic!("unknown cop0 delegation: {_else:05x} (op: 0x{inst:08x})"),
         }
+    }
+
+    /// Invoke coprocessor 1 (Unused)
+    // cop1 cop_op
+    // Not supported on playstation
+    fn op_cop1(&mut self, inst: Instruction) {
+        tracing::trace!("exec COP1");
+        tracing::warn!("COP1 opcode issued, though this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Invoke coprocessor 2
+    // cop2 cop_op
+    // exec cop2 command 0x0..0x1ff_ffff
+    fn op_cop2(&mut self, bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec COP2");
+        panic!("unhandled GTE instruction: (instruction: {})", inst.inner());
+    }
+
+    /// Invoke coprocessor 3 (Unused)
+    // cop3 cop_op
+    // Not supported on playstation
+    fn op_cop3(&mut self, inst: Instruction) {
+        tracing::trace!("exec COP3");
+        tracing::warn!("COP3 opcode issued, though this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
     }
 
     /// Move from coprocessor 0
