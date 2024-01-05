@@ -1505,7 +1505,7 @@ impl Cpu {
         self.cop.mtc0(bus, cop_r, val);
     }
 
-    fn op_rfe(&mut self, _bus: &mut Bus, inst: Instruction) {
+    fn op_rfe(&mut self, bus: &mut Bus, inst: Instruction) {
         tracing::trace!("delegate RFE");
         if inst.inner() & 0x3f != 0b01_0000 {
             panic!("Unsupported cop0 instruction: {inst:08x}");

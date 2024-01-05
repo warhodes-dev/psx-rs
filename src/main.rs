@@ -29,7 +29,7 @@ fn main() -> Result<()> {
         println!("Error halted operation: {err}");
     }
 
-    println!("Total instructions processed: {}", ctx.psx.instruction_cnt);
+    println!("Total instructions processed: {}", ctx.psx.instructions_retired);
 
     Ok(())
 }
