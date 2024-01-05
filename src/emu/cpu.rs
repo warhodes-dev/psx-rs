@@ -221,10 +221,20 @@ impl Cpu {
             0x23 => self.op_lw(bus, inst),
             0x24 => self.op_lbu(bus, inst),
             0x25 => self.op_lhu(bus, inst),
-            0x22 => self.op_lwr(bus, inst),
+            0x26 => self.op_lwr(bus, inst),
             0x28 => self.op_sb(bus, inst),
             0x29 => self.op_sh(bus, inst),
+            0x2a => self.op_swl(bus, inst),
             0x2b => self.op_sw(bus, inst),
+            0x2e => self.op_swr(bus, inst),
+            0x30 => self.op_lwc0(inst),
+            0x31 => self.op_lwc1(inst),
+            0x32 => self.op_lwc2(bus, inst),
+            0x33 => self.op_lwc3(inst),
+            0x38 => self.op_swc0(inst),
+            0x39 => self.op_swc1(inst),
+            0x3a => self.op_swc2(bus, inst),
+            0x3b => self.op_swc3(inst),
 
             // Secondary Opcodes
             0x00 => match inst.funct() { 
@@ -1370,7 +1380,6 @@ impl Cpu {
     /* === Coprocessor logic === */
 
     /// Invoke coprocessor 0
-    // cop0 cop_op
     // exec cop0 command 0x0..0x1ff_ffff
     fn op_cop0(&mut self, bus: &mut Bus, inst: Instruction) {
         tracing::trace!("exec COP0");
@@ -1383,28 +1392,88 @@ impl Cpu {
     }
 
     /// Invoke coprocessor 1 (Unused)
-    // cop1 cop_op
     // Not supported on playstation
-    fn op_cop1(&mut self, inst: Instruction) {
+    fn op_cop1(&mut self, _inst: Instruction) {
         tracing::trace!("exec COP1");
         tracing::warn!("COP1 opcode issued, though this is unused on original PS1 hardware");
         self.exception(Exception::CoprocessorError)
     }
 
     /// Invoke coprocessor 2
-    // cop2 cop_op
     // exec cop2 command 0x0..0x1ff_ffff
-    fn op_cop2(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_cop2(&mut self, _bus: &mut Bus, inst: Instruction) {
         tracing::trace!("exec COP2");
         panic!("unhandled GTE instruction: (instruction: {})", inst.inner());
     }
 
     /// Invoke coprocessor 3 (Unused)
-    // cop3 cop_op
     // Not supported on playstation
-    fn op_cop3(&mut self, inst: Instruction) {
+    fn op_cop3(&mut self, _inst: Instruction) {
         tracing::trace!("exec COP3");
         tracing::warn!("COP3 opcode issued, though this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Load word from coprocessor 0 (Unused)
+    // Not supported on playstation
+    fn op_lwc0(&mut self, _inst: Instruction) {
+        tracing::trace!("exec LWC0");
+        tracing::warn!("Tried to load word from cop0, but this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Load word from coprocessor 1 (Unused)
+    // Not supported on playstation
+    fn op_lwc1(&mut self, _inst: Instruction) {
+        tracing::trace!("exec LWC1");
+        tracing::warn!("Tried to load word from cop1, but this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Load word from coprocessor 2
+    // mem[offset] = cop2[data_reg]
+    fn op_lwc2(&mut self, _bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec LWC2");
+        panic!("Unhandled GTE LWC: {}", inst.inner());
+    }
+
+    /// Load word from coprocessor 3 (Unused)
+    // Not supported on playstation
+    fn op_lwc3(&mut self, _inst: Instruction) {
+        tracing::trace!("exec LWC3");
+        tracing::warn!("Tried to load word from cop3, but this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Store word to coprocessor 0 (Unused)
+    // Not supported on playstation
+    fn op_swc0(&mut self, _inst: Instruction) {
+        tracing::trace!("exec SWC0");
+        tracing::warn!("Tried to store word to cop0, but this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Store word to coprocessor 1 (Unused)
+    // Not supported on playstation
+    fn op_swc1(&mut self, _inst: Instruction) {
+        tracing::trace!("exec SWC1");
+        tracing::warn!("Tried to store word to cop1, but this is unused on original PS1 hardware");
+        self.exception(Exception::CoprocessorError)
+    }
+
+    /// Load word from coprocessor 2
+    // mem[offset] = cop2[data_reg]
+    // cop2[data_reg] = mem[offset]
+    fn op_swc2(&mut self, _bus: &mut Bus, inst: Instruction) {
+        tracing::trace!("exec SWC2");
+        panic!("Unhandled GTE SWC: {}", inst.inner());
+    }
+
+    /// Store word to coprocessor 3 (Unused)
+    // Not supported on playstation
+    fn op_swc3(&mut self, _inst: Instruction) {
+        tracing::trace!("exec SWC3");
+        tracing::warn!("Tried to store word to cop3, but this is unused on original PS1 hardware");
         self.exception(Exception::CoprocessorError)
     }
 
@@ -1436,7 +1505,7 @@ impl Cpu {
         self.cop.mtc0(bus, cop_r, val);
     }
 
-    fn op_rfe(&mut self, bus: &mut Bus, inst: Instruction) {
+    fn op_rfe(&mut self, _bus: &mut Bus, inst: Instruction) {
         tracing::trace!("delegate RFE");
         if inst.inner() & 0x3f != 0b01_0000 {
             panic!("Unsupported cop0 instruction: {inst:08x}");

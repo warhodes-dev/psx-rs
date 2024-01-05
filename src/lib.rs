@@ -44,7 +44,7 @@ impl Context {
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            tracing::trace!("=== Instruction {:2} issued ===", self.psx.instruction_cnt);
+            tracing::trace!("=== Instruction {:2} issued ===", self.psx.instructions_retired + 1);
             self.psx.step();
         }
     }

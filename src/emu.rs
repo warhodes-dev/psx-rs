@@ -20,7 +20,7 @@ use crate::emu::{
 pub struct Psx {
     cpu: Cpu,
     bus: Bus,
-    pub instruction_cnt: u64,
+    pub instructions_retired: u64,
 }
 
 impl Psx {
@@ -33,11 +33,11 @@ impl Psx {
         Psx { 
             bus,
             cpu: Cpu::new(),
-            instruction_cnt: 0,
+            instructions_retired: 0,
         }
     }
     pub fn step(&mut self) {
-        self.instruction_cnt += 1;
+        self.instructions_retired += 1;
         self.cpu.handle_next_instruction(&mut self.bus);
     }
 }
