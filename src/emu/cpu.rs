@@ -266,9 +266,9 @@ impl Cpu {
                 0x27 => self.op_nor(inst),
                 0x2a => self.op_slt(inst),
                 0x2b => self.op_sltu(inst),
-                _else => panic!("unknown secondary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
+                _    => self.op_illegal(inst),
             },
-            _else => panic!("unknown primary opcode: 0x{_else:02x} (0x{:08x})", inst.0),
+            _    => self.op_illegal(inst),
         };
     }
 
@@ -1511,5 +1511,10 @@ impl Cpu {
             panic!("Unsupported cop0 instruction: {inst:08x}");
         }
         self.cop.pop_mode();
+    }
+
+    fn op_illegal(&mut self, inst: Instruction) {
+        tracing::warn!("exec ILLEGAL");
+        self.exception(Exception::IllegalInstruction)
     }
 }

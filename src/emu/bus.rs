@@ -86,6 +86,7 @@ impl Bus {
             map::Region::Gpu(mapping) => {
                 tracing::warn!("read from gpu register 0x{addr:08x}), but this is unimplemented");
                 let offset = paddr - mapping.base;
+                // Simulate GPUSTAT::Ready to recieve DMA blocks
                 let response = match offset {
                     4 => 0x1000_0000,
                     _ => 0,

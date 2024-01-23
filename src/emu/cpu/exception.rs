@@ -4,6 +4,7 @@ pub enum Exception {
     StoreAlignmentError = 5,
     Syscall             = 8,
     Break               = 9,
+    IllegalInstruction  = 10,
     CoprocessorError    = 11,
     Overflow            = 12,
 }
